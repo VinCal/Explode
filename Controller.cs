@@ -467,9 +467,10 @@ namespace Test_ExplodeScript
                 }
                 else
                 {
-                    m_RealParentNodeDictionary[nodeHandle] = parentNode;
+                    //We don't replace the entire node with parentNode because in that case he would lose his children
+                    //We do need to clear the deleted material ID set
+                    parentNode.ClearDeletedMaterialIDs();
 
-                    //This next part is just to inform the users which IDs they added again. 
                     //Currently active IDs in the m_RealParentNodeDictionary
                     var usedIDs = m_RealParentNodeDictionary[nodeHandle].GetUsedMaterialIDsArray();
                     //All of the Material IDs in parentNode
@@ -485,6 +486,8 @@ namespace Test_ExplodeScript
                         for (int index = 0; index < toBeAddedIDs.Length; index++)
                         {
                             ushort beAddedID = toBeAddedIDs[index];
+                            //Add the materialIDBitArray at the beAddedID key
+                            m_RealParentNodeDictionary[nodeHandle].SetMaterialBitArray(beAddedID, parentNode.GetMaterialBitArray(beAddedID));
 
                             if (index == toBeAddedIDs.Length - 1)
                                 ids += (beAddedID + 1);

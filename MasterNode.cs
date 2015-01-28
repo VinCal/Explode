@@ -573,9 +573,20 @@ namespace Test_ExplodeScript
             return m_ElementNodeDictionary[matID].MaterialIDFaceBitArray;
         }
 
+        /// <summary>
+        /// Clears all element nodes from the dictionary
+        /// </summary>
         public void ClearMaterialBitArray()
         {
            m_ElementNodeDictionary.Clear();
+        }
+
+        /// <summary>
+        /// Clears the deleted material ID list
+        /// </summary>
+        public void ClearDeletedMaterialIDs()
+        {
+            m_DeletedMaterialIDs.Clear();
         }
 
         /// <summary>

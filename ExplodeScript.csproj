@@ -161,9 +161,6 @@
     <Compile Include="NotifyCallbackClass.cs" />
     <Compile Include="ObjectMethods.cs" />
     <Compile Include="PluginClass.cs" />
-    <Compile Include="PolyMethods.cs" />
-    <Compile Include="Test.cs" />
-    <Compile Include="TriMethods.cs" />
     <Compile Include="UI\ButtonLabel.cs">
       <SubType>Component</SubType>
     </Compile>
