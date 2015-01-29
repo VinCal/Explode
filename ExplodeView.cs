@@ -20,7 +20,8 @@ namespace Test_ExplodeScript
 
         //private readonly BufferedTreeView m_TreeView;
         private MaxFormEx m_MaxForm;
-        private ButtonLabel m_ExplodeButton;
+        private ButtonLabel m_ExplodeAndExportButton;
+        private HelpPanel m_HelpPanel;
 
         public IGlobal Global
         {
@@ -41,7 +42,7 @@ namespace Test_ExplodeScript
             m_MaxForm = new MaxFormEx
             {
                 Size = new Size(302, 500),
-                Text = "Explode script",
+                Text = "Explode",
                 BackColor = Color.FromArgb(68, 68, 68),
                 FormBorderStyle = FormBorderStyle.None
             };
@@ -54,39 +55,19 @@ namespace Test_ExplodeScript
             //give treeview a controller 
             treeviewManager.Controller = m_Controller;
 
+            //Hook up event
             m_Controller.ExplodeChanged += m_Controller_ExplodeChanged;
-
-            var labelIDSplit = new CheckLabel
+            
+            //Create UI
+            m_HelpPanel = new HelpPanel
             {
-                Size = new Size(125, 25),
-                Location = new Point(10, 327),
-                BackColor = Color.FromArgb(90, 90, 90),
-                ForeColor = Color.FromArgb(220, 220, 220),
-                Text = "Split by Material ID",
-                TextAlign = ContentAlignment.MiddleCenter,
-                Checked = true
+                Location = new Point(1, 306),
             };
-            labelIDSplit.Click += labelIDSplit_Click;
-
-            var labelElementSplit = new CheckLabel
-            {
-                Size = new Size(125, 25),
-                Location = new Point(151, 327),
-                BackColor = Color.FromArgb(90, 90, 90),
-                ForeColor = Color.FromArgb(220, 220, 220),
-                Text = "Split by Element",
-                TextAlign = ContentAlignment.MiddleCenter,
-                Checked = false,
-                checkLabel = labelIDSplit
-            };
-            labelElementSplit.Click += labelElementSplit_Click;
-
-            labelIDSplit.checkLabel = labelElementSplit;
 
             var addButton = new ButtonLabel
             {
                 Size = new Size(125, 25),
-                Location = new Point(10, 377),
+                Location = new Point(10, 327),
                 BackColor = Color.FromArgb(90, 90, 90),
                 ForeColor = Color.FromArgb(220, 220, 220),
                 Text = "Add LP",
@@ -98,7 +79,7 @@ namespace Test_ExplodeScript
             var addHPButton = new ButtonLabel
             {
                 Size = new Size(125, 25),
-                Location = new Point(151, 377),
+                Location = new Point(151, 327),
                 BackColor = Color.FromArgb(90, 90, 90),
                 ForeColor = Color.FromArgb(220, 220, 220),
                 Text = "Add HP",
@@ -107,27 +88,52 @@ namespace Test_ExplodeScript
             };
             addHPButton.MouseUp += addHPButton_MouseUp;
 
-            m_ExplodeButton = new ButtonLabel
+            var explodeButton = new ButtonLabel
             {
-                Size = new Size(266, 25),
-                Location = new Point(10, 420),
+                Size = new Size(125, 25),
+                Location = new Point(10, 377),
                 BackColor = Color.FromArgb(90, 90, 90),
                 ForeColor = Color.FromArgb(220, 220, 220),
                 Text = "Explode",
                 TextAlign = ContentAlignment.MiddleCenter,
                 MouseDownProperty = false
             };
-            m_ExplodeButton.MouseUp += explodeButton_MouseUp;
+            explodeButton.MouseUp += explodeButton_MouseUp;
+
+            var exportButton = new ButtonLabel
+            {
+                Size = new Size(125, 25),
+                Location = new Point(151, 377),
+                BackColor = Color.FromArgb(90, 90, 90),
+                ForeColor = Color.FromArgb(220, 220, 220),
+                Text = "Export",
+                TextAlign = ContentAlignment.MiddleCenter,
+                MouseDownProperty = false
+            };
+            exportButton.MouseUp += exportButton_MouseUp;
+
+            m_ExplodeAndExportButton = new ButtonLabel
+            {
+                Size = new Size(266, 25),
+                Location = new Point(10, 409),
+                BackColor = Color.FromArgb(90, 90, 90),
+                ForeColor = Color.FromArgb(220, 220, 220),
+                Text = "Explode & Export",
+                TextAlign = ContentAlignment.MiddleCenter,
+                MouseDownProperty = false
+            };
+            m_ExplodeAndExportButton.MouseUp += explodeAndExportButton_MouseUp;
 
             //Add Controls
-            m_MaxForm.Controls.Add(treeviewManager);
-            m_MaxForm.Controls.Add(labelIDSplit);
-            m_MaxForm.Controls.Add(labelElementSplit);
+            m_MaxForm.Controls.Add(treeviewManager); 
+            m_MaxForm.Controls.Add(m_HelpPanel);
             m_MaxForm.Controls.Add(addButton);
             m_MaxForm.Controls.Add(addHPButton);
-            m_MaxForm.Controls.Add(m_ExplodeButton);
+            m_MaxForm.Controls.Add(explodeButton);
+            m_MaxForm.Controls.Add(exportButton);
+            m_MaxForm.Controls.Add(m_ExplodeAndExportButton);
 
-
+            //Show form
             IntPtr maxHandle = global.COREInterface.MAXHWnd;
             m_MaxForm.Show(new ArbitraryWindow(maxHandle));
 
@@ -162,9 +168,11 @@ namespace Test_ExplodeScript
 #endif
         }
 
+
+
         void m_Controller_ExplodeChanged(bool exploded)
         {
-            m_ExplodeButton.Text = exploded ? "Collapse" : "Explode";
+            m_ExplodeAndExportButton.Text = exploded ? "Collapse" : "Explode";
         }
 
         void movebutton_Click(object sender, EventArgs e)
@@ -192,29 +200,9 @@ namespace Test_ExplodeScript
             m_Controller.CreateDebugBoundingBox();
         }
 
-        //void m_TreeView_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
-        //{
-        //    m_TreeView.BeginUpdate();
-        //    m_TreeView.SuspendLayout();
-        //    m_TreeView.SuspendDrawing();
-
-        //    DebugMethods.Log("Node clicked");
-
-        //    var selectedNode = e.Node as TreeNodeEx;
-        //    m_Controller.UpdateSubObjectSelection(selectedNode);
-
-        //    m_TreeView.ResumeDrawing();
-        //    m_TreeView.ResumeLayout();
-        //    m_TreeView.EndUpdate();
-        //}
-
-        /// <summary>
-        /// Add Button
-        /// </summary>
         void addButton_MouseUp(object sender, MouseEventArgs e)
         {
-            //Call Add from Controller
-            m_Controller.InitiliazeLPObjects();
+            m_Controller.AddLPObjects();
             m_Controller.PopulateTreeview();
         }
 
@@ -224,62 +212,69 @@ namespace Test_ExplodeScript
             m_Controller.PopulateTreeview();
         }
 
-        /// <summary>
-        /// Explode button
-        /// </summary>
         void explodeButton_MouseUp(object sender, MouseEventArgs e)
+        {
+            m_HelpPanel.Push("> Explode");
+        }
+
+        void exportButton_MouseUp(object sender, MouseEventArgs e)
+        {
+            m_HelpPanel.Push("> Exporting");
+        }
+
+        void explodeAndExportButton_MouseUp(object sender, MouseEventArgs e)
         {
             //m_MaxForm.Close();
             m_Controller.Explode();
         }
 
 
-        void labelIDSplit_Click(object sender, EventArgs e)
-        {
-            var idLabel = sender as CheckLabel;
-            var elementLabel = (sender as CheckLabel).checkLabel;
+        //void labelIDSplit_Click(object sender, EventArgs e)
+        //{
+        //    var idLabel = sender as CheckLabel;
+        //    var elementLabel = (sender as CheckLabel).checkLabel;
 
-            if (!idLabel.Checked)
-            {
-                if (elementLabel.Checked)
-                    elementLabel.Checked = false;
+        //    if (!idLabel.Checked)
+        //    {
+        //        if (elementLabel.Checked)
+        //            elementLabel.Checked = false;
 
-                idLabel.Checked = true;
-            }
-            else
-            {
-                idLabel.Checked = false;
-            }
+        //        idLabel.Checked = true;
+        //    }
+        //    else
+        //    {
+        //        idLabel.Checked = false;
+        //    }
 
-            idLabel.Refresh();
-            elementLabel.Refresh();
+        //    idLabel.Refresh();
+        //    elementLabel.Refresh();
 
-           m_MaxForm.Close();
-            //Send updated values to Controller
-        }
+        //   m_MaxForm.Close();
+        //    //Send updated values to Controller
+        //}
 
-        void labelElementSplit_Click(object sender, EventArgs e)
-        {
-            var elementLabel = sender as CheckLabel;
-            var idLabel = (sender as CheckLabel).checkLabel;
+        //void labelElementSplit_Click(object sender, EventArgs e)
+        //{
+        //    var elementLabel = sender as CheckLabel;
+        //    var idLabel = (sender as CheckLabel).checkLabel;
 
-            if (!elementLabel.Checked)
-            {
-                if (idLabel.Checked)
-                    idLabel.Checked = false;
+        //    if (!elementLabel.Checked)
+        //    {
+        //        if (idLabel.Checked)
+        //            idLabel.Checked = false;
 
-                elementLabel.Checked = true;
-            }
-            else
-            {
-                elementLabel.Checked = false;
-            }
+        //        elementLabel.Checked = true;
+        //    }
+        //    else
+        //    {
+        //        elementLabel.Checked = false;
+        //    }
 
-            elementLabel.Refresh();
-            idLabel.Refresh();
+        //    elementLabel.Refresh();
+        //    idLabel.Refresh();
 
-            //Send updated values to Controller
-        }
+        //    //Send updated values to Controller
+        //}
 
         
     }

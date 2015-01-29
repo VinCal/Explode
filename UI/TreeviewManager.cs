@@ -40,23 +40,20 @@ namespace ExplodeScript.UI
 
         //keeps track of all nodes in TreeView for easy look up by handle / ID
         private Dictionary<Tuple<uint, ushort>, TreeNodeEx> m_NodeDictionary;
-
-        private Dictionary<uint, Dictionary<ushort, TreeNodeEx>> m_RealNodeDictionary; 
-
+        
         public TreeView TreeView { get; set; }
         public Controller Controller { private get; set; }
 
         public TreeviewManager()
         {
             Location = new Point(1, m_Ypos);
-            Size = new Size(284, 304);
+            Size = new Size(284, 288);
             BackColor = Color.FromArgb(90, 90, 90);
-
 
             TreeView = new TreeView
             {
                 Location = new Point(m_Xpos, 0),
-                Size = new Size(268,304),
+                Size = new Size(268,288),
                 BackColor = Color.FromArgb(90,90,90),
                 ForeColor = Color.FromArgb(220,220,220),
                 ItemHeight = 16,
@@ -90,8 +87,6 @@ namespace ExplodeScript.UI
             Controls.Add(TreeView);
 
             m_NodeDictionary = new Dictionary<Tuple<uint, ushort>, TreeNodeEx>();
-
-            m_RealNodeDictionary = new Dictionary<uint, Dictionary<ushort, TreeNodeEx>>();
         }
 
         void panel_Click(object sender, EventArgs e)
@@ -236,29 +231,6 @@ namespace ExplodeScript.UI
         /// <param name="lpNode"></param>
         public void AddNodes(TreeNodeEx lpNode)
         {
-            //var allNodes = new List<TreeNodeEx> {lpNode};
-            //allNodes.AddRange(lpNode.Nodes.Cast<TreeNodeEx>());
-
-            //foreach (TreeNodeEx node in allNodes)
-            //{
-            //    //first time this handle is being added
-            //    if (!m_RealNodeDictionary.ContainsKey(node.uHandle))
-            //    {
-            //        //We need to create new dictionary at this key (lpHandle)
-            //        m_RealNodeDictionary.Add(node.uHandle, new Dictionary<ushort, TreeNodeEx>());
-            //    }
-
-            //    //If this matID has never been added either...
-            //    if (!m_RealNodeDictionary[node.uHandle].ContainsKey(node.matID))
-            //    {
-            //        //Add the lpNode TreeNodeEx at key (matID)
-            //        m_RealNodeDictionary[node.uHandle].Add(node.matID, node);
-
-            //        //Add them to the treeview
-            //        TreeView.Nodes.Add(node);
-            //    }
-            //}
-
             //Only add if it hasn't been added already
             if (!m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(lpNode.uHandle, lpNode.matID)))
             {
@@ -282,29 +254,6 @@ namespace ExplodeScript.UI
         /// </summary>
         public void DeleteNode(uint lpHandle, ushort lpID)
         {
-            //if (m_RealNodeDictionary.ContainsKey(lpHandle))
-            //{
-            //    if (m_RealNodeDictionary[lpHandle].ContainsKey(lpID))
-            //    {
-            //        var treeNode = m_RealNodeDictionary[lpHandle][lpID];
-
-            //        //Remove the treeNode from the treeview
-            //        TreeView.Nodes.Remove(treeNode);
-
-            //        //Remove the ID
-            //        m_RealNodeDictionary[lpHandle].Remove(lpID);
-
-            //        //This means when we have deleted all the lpIDs of the Handle, by either pressing delete or 
-            //        //changing the ID to an already delete ID.
-            //        if (m_RealNodeDictionary[lpHandle].Count == 0)
-            //        {
-            //            //We should now remove the node
-            //            m_RealNodeDictionary.Remove(lpHandle);
-
-            //        }
-            //    }
-            //}
-
             //If this key does not exist it means we've already deleted it, usually a second callback from EditablePoly
             if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(lpHandle, lpID)))
             {

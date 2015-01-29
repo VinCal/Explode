@@ -160,6 +160,9 @@
     </Compile>
     <Compile Include="HelperClasses\DebugMethods.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="UI\HelpPanel.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="UI\MaxFormEx.cs">
       <SubType>Form</SubType>
     </Compile>

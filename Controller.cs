@@ -359,7 +359,7 @@ namespace Test_ExplodeScript
             m_Global.UnRegisterNotification(m_SceneResetHandler, null);
         }
 
-        public void InitiliazeLPObjects()
+        public void AddLPObjects()
         {
             IInterface iface = m_Global.COREInterface;
 

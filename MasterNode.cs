@@ -511,7 +511,7 @@ namespace Test_ExplodeScript
 
 
         /// <summary>
-        /// Updates the Material Bit Array for this new ParentNode 
+        /// Updates the Material Bit Array with the data of newParentNode
         /// </summary>
         public string UpdateMaterialBitArray(ParentNode newParentNode)
         {
