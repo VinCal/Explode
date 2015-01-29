@@ -30,8 +30,6 @@ namespace Test_ExplodeScript
 
         private Controller m_Controller;
 
-
-
         public ExplodeView(IGlobal global)
         {
             m_Global = global;
@@ -57,6 +55,7 @@ namespace Test_ExplodeScript
 
             //Hook up event
             m_Controller.ExplodeChanged += m_Controller_ExplodeChanged;
+            m_Controller.DebugTextChanged += m_Controller_DebugTextChanged;
             
             //Create UI
             m_HelpPanel = new HelpPanel
@@ -169,11 +168,16 @@ namespace Test_ExplodeScript
         }
 
 
-
         void m_Controller_ExplodeChanged(bool exploded)
         {
             m_ExplodeAndExportButton.Text = exploded ? "Collapse" : "Explode";
         }
+
+        void m_Controller_DebugTextChanged(string debugString)
+        {
+            m_HelpPanel.Push(debugString, true);
+        }
+
 
         void movebutton_Click(object sender, EventArgs e)
         {
@@ -202,24 +206,25 @@ namespace Test_ExplodeScript
 
         void addButton_MouseUp(object sender, MouseEventArgs e)
         {
-            m_Controller.AddLPObjects();
-            m_Controller.PopulateTreeview();
+            if (m_Controller.AddLPObjects())
+                m_Controller.PopulateTreeview();
         }
 
         void addHPButton_MouseUp(object sender, MouseEventArgs e)
         {
             m_Controller.AddHPObject();
+            //Todo don't call populateTreeview if nothing was added.
             m_Controller.PopulateTreeview();
         }
 
         void explodeButton_MouseUp(object sender, MouseEventArgs e)
         {
-            m_HelpPanel.Push("> Explode");
+            m_HelpPanel.Push("> Explode", true);
         }
 
         void exportButton_MouseUp(object sender, MouseEventArgs e)
         {
-            m_HelpPanel.Push("> Exporting");
+            m_HelpPanel.Push("> Exporting", false);
         }
 
         void explodeAndExportButton_MouseUp(object sender, MouseEventArgs e)

@@ -212,7 +212,6 @@ namespace Test_ExplodeScript
         /// <summary>
         /// Set the child for this Node
         /// </summary>
-        /// <param name="handle">Handle of the HP</param>
         /// <param name="matID">Material ID of the parentNode</param>
         /// <param name="childNode">ChildNode to be added</param>
         public bool SetChild(ushort matID, ChildNode childNode)

@@ -221,6 +221,19 @@ namespace Test_ExplodeScript
             }
         }
 
+        public delegate void DebugTextHandler(string debugString);
+        public event DebugTextHandler DebugTextChanged;
+
+        public string DebugText
+        {
+            set
+            {
+                DebugTextChanged(value);
+            }
+        }
+
+
+
         #region Max Datamembers
         private const int TASK_MODE_MODIFY = 2;
         #endregion
@@ -359,7 +372,7 @@ namespace Test_ExplodeScript
             m_Global.UnRegisterNotification(m_SceneResetHandler, null);
         }
 
-        public void AddLPObjects()
+        public bool AddLPObjects()
         {
             IInterface iface = m_Global.COREInterface;
 
@@ -380,6 +393,8 @@ namespace Test_ExplodeScript
             //we should read the properties here and determine wheter the object has been exploded before or not
             //let's just set it to false for now
             Exploded = false;
+
+            var succes = false;
 
             //Loop through each object in the selection
             for (int i = 0; i < iface.SelNodeCount; i++)
@@ -429,7 +444,8 @@ namespace Test_ExplodeScript
                         m_NodeEventCallback.SetLPNodeToWatch(nodeHandle);
 
                         //Debug text
-                        nodeAddedInformation = string.Format("Node added {0}", node.Name);
+                        nodeAddedInformation = string.Format("Successfully added ParentNode {0}", node.Name);
+                        succes = true;
                     }
                     else
                     {
@@ -442,6 +458,7 @@ namespace Test_ExplodeScript
                                 m_RealParentNodeDictionary.Add(nodeHandle, parentNode);
                                 m_NodeEventCallback.SetLPNodeToWatch(nodeHandle);
                                 nodeAddedInformation = string.Format("Node added {0}", node.Name);
+                                succes = true;
                             }
                             else
                             {
@@ -455,6 +472,7 @@ namespace Test_ExplodeScript
                                         m_RealParentNodeDictionary.Add(nodeHandle, parentNode);
                                         m_NodeEventCallback.SetLPNodeToWatch(nodeHandle);
                                         nodeAddedInformation = string.Format("Node added {0}", node.Name);
+                                        succes = true;
                                     }
                                     else
                                     {
@@ -469,42 +487,24 @@ namespace Test_ExplodeScript
                 {
                     //We don't replace the entire node with parentNode because in that case he would lose his children
                     //We do need to clear the deleted material ID set
-                    parentNode.ClearDeletedMaterialIDs();
                     var ids = m_RealParentNodeDictionary[nodeHandle].UpdateMaterialBitArray(parentNode);
-                    nodeAddedInformation = "Materials IDs added:" + ids;
-
-                    ////Currently active IDs in the m_RealParentNodeDictionary
-                    //var usedIDs = m_RealParentNodeDictionary[nodeHandle].GetUsedMaterialIDsArray();
-                    ////All of the Material IDs in parentNode
-                    //var newIDs = parentNode.GetUsedMaterialIDsArray();
-
-                    ////All of the material IDs in parentNode - currently active IDs
-                    //var toBeAddedIDs = newIDs.Except(usedIDs).ToArray();
-                    //if (toBeAddedIDs.Length != 0)
-                    //{
-                    //    Array.Sort(toBeAddedIDs);
-                    //    string ids = string.Empty;
-
-                    //    for (int index = 0; index < toBeAddedIDs.Length; index++)
-                    //    {
-                    //        ushort beAddedID = toBeAddedIDs[index];
-                    //        //Add the materialIDBitArray at the beAddedID key
-                    //        m_RealParentNodeDictionary[nodeHandle].SetMaterialBitArray(beAddedID, parentNode.GetMaterialBitArray(beAddedID));
-
-                            
-
-                    //        if (index == toBeAddedIDs.Length - 1)
-                    //            ids += (beAddedID + 1);
-                    //        else
-                    //            ids += beAddedID + 1 + ", ";
-                    //    }
-                       
-                    //}
+                    if (ids.Any())
+                    {
+                        parentNode.ClearDeletedMaterialIDs();
+                        nodeAddedInformation = "Materials IDs added:" + ids;
+                        succes = true;
+                    }
+                    else
+                    {
+                        nodeAddedInformation = "Node has already been added.";
+                    }
                 }
 
                 DebugMethods.Log(nodeAddedInformation);
-                
+                DebugText = nodeAddedInformation;
             }
+
+            return succes;
         }
 
         public void AddHPObject()
@@ -567,6 +567,10 @@ namespace Test_ExplodeScript
                             {
                                 childNode.ParentHandle = lpHandle;
                                 var result = m_RealParentNodeDictionary[lpHandle].SetChild(lpID, childNode);
+                                if (result)
+                                    DebugText = String.Format("Successfully added {0} as childNode", childNode.Name);
+                                else
+                                    DebugText = String.Format("{0} has already been added as childNode", childNode.Name);
                             }
                         }
                     }
