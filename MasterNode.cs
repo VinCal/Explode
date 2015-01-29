@@ -8,6 +8,7 @@ using System.Windows.Media.TextFormatting;
 using Autodesk.Max;
 using Autodesk.Max.CAssertCB;
 using Autodesk.Max.Plugins;
+using ExplodeScript;
 
 namespace Test_ExplodeScript
 {
@@ -108,13 +109,13 @@ namespace Test_ExplodeScript
     {
         public ElementParentNode()
         {
-            ChildNodeDictionary = new Dictionary<uint, RealChildNode>();
+            ChildNodeDictionary = new Dictionary<uint, ChildNode>();
         }
 
         /// <summary>
         /// The ChildNode dictionary for the given ID
         /// </summary>
-        public Dictionary<uint, RealChildNode> ChildNodeDictionary { get; set; }
+        public Dictionary<uint, ChildNode> ChildNodeDictionary { get; set; }
 
         /// <summary>
         /// X, Y, Z coordinates of the Max Values for the given ID
@@ -128,16 +129,16 @@ namespace Test_ExplodeScript
     }
 
 
-    public class RealParentNode : RealBaseNode
+    public class ParentNode : BaseNode
     {
         private readonly uint[] emptyArray = new uint[0];
 
-        public RealParentNode(IINode iNode, bool isPolyObject) : base(iNode, isPolyObject)
+        public ParentNode(IINode iNode, bool isPolyObject) : base(iNode, isPolyObject)
         {
             m_ElementParentNodeDictionary = new Dictionary<ushort, ElementParentNode>();
         }
 
-        public RealParentNode()
+        public ParentNode()
         {
             m_ElementParentNodeDictionary = new Dictionary<ushort, ElementParentNode>();
         }
@@ -214,7 +215,7 @@ namespace Test_ExplodeScript
         /// <param name="handle">Handle of the HP</param>
         /// <param name="matID">Material ID of the parentNode</param>
         /// <param name="childNode">ChildNode to be added</param>
-        public bool SetChild(ushort matID, RealChildNode childNode)
+        public bool SetChild(ushort matID, ChildNode childNode)
         {
             if (childNode == null) throw new Exception("Childnode was null in SetChild method");
 
@@ -243,7 +244,7 @@ namespace Test_ExplodeScript
         /// <param name="handle">Handle of the HP</param>
         /// <param name="matID">Material ID of the parentNode</param>
         /// <returns></returns>
-        public RealChildNode GetChild(ushort matID, uint hpHandle)
+        public ChildNode GetChild(ushort matID, uint hpHandle)
         {
             if (m_ElementParentNodeDictionary.ContainsKey(matID))
                 if (m_ElementParentNodeDictionary[matID].ChildNodeDictionary.ContainsKey(hpHandle))
@@ -284,10 +285,10 @@ namespace Test_ExplodeScript
         //    return m_ElementParentNodeDictionary[matID].ChildeNodeDictionary.ContainsKey(hpHandle);
         //}
 
-        public HashSet<RealChildNode> GetUniqueChildNodes()
+        public HashSet<ChildNode> GetUniqueChildNodes()
         {
             //we need to loop over each lp ID and keep unique handles / unique childNodes
-            HashSet<RealChildNode> tempChildNodes = new HashSet<RealChildNode>();
+            HashSet<ChildNode> tempChildNodes = new HashSet<ChildNode>();
 
             var usedLpIDs = GetUsedMaterialIDsArray();
 
@@ -308,27 +309,15 @@ namespace Test_ExplodeScript
         }
     }
 
-    public class RealChildNode : RealBaseNode
+    public class ChildNode : BaseNode
     {
-        public RealChildNode(IINode iNode, bool isPolyObject) : base(iNode, isPolyObject) { }
+        public ChildNode(IINode iNode, bool isPolyObject) : base(iNode, isPolyObject) { }
 
         public uint ParentHandle { get; set; }
     }
 
-    class SetMaterialBitArrayException : Exception{}
-
-    class CreateMatIDBitArrayException : Exception
-    {
-        public CreateMatIDBitArrayException(string message):base(message){}
-    }
-
-    class SetMaterialBitArrayBitException : Exception
-    {
-        public SetMaterialBitArrayBitException(string message): base(message){}
-    }
-
     //we should definitely change this :p
-    public class RealBaseNode
+    public class BaseNode
     {
         //this one should hold the information about the actual node / mesh
         //if it's editable mesh or poly, how many material ids it has
@@ -416,7 +405,7 @@ namespace Test_ExplodeScript
         /// <summary>
         /// Creates a real BaseNode
         /// </summary>
-        public RealBaseNode(IINode iNode, bool isPolyObject)
+        public BaseNode(IINode iNode, bool isPolyObject)
         {
             m_Global = GlobalInterface.Instance;
 
@@ -443,7 +432,7 @@ namespace Test_ExplodeScript
         /// <summary>
         /// Creates a placeholder node
         /// </summary>
-        public RealBaseNode()
+        public BaseNode()
         {
             m_Global = GlobalInterface.Instance;
 
@@ -475,10 +464,7 @@ namespace Test_ExplodeScript
             UpdateMesh();
             var currentFaceCount = getFaceCount();
 
-            if (m_PreviousFaceCount != currentFaceCount)
-                return true;
-
-            return false;
+            return m_PreviousFaceCount != currentFaceCount;
         }
 
         /// <summary>
@@ -503,7 +489,7 @@ namespace Test_ExplodeScript
             }
 
             else
-                throw new CreateMatIDBitArrayException("Tried to create a Material BitArray with a key that is already used!");
+                throw new CreateMatIDBitArrayException(matID);
         }
 
 
@@ -513,22 +499,58 @@ namespace Test_ExplodeScript
         /// </summary>
         /// <param name="matID"></param>
         /// <param name="index"></param>
-        public void SetMaterialIDBitArrayBit(ushort matID, int index)
+        public void SetMaterialIDBit(ushort matID, int index)
         {
             if (m_ElementNodeDictionary.ContainsKey(matID))
             {
                 m_ElementNodeDictionary[matID].MaterialIDFaceBitArray.Set(index, true);
             }
             else
-                throw new SetMaterialBitArrayBitException("Tried to set a bit but the m_ElementNodeDictionary does not contain this matID!");
+                throw new SetMaterialBitException(matID, index);
+        }
+
+
+        /// <summary>
+        /// Updates the Material Bit Array for this new ParentNode 
+        /// </summary>
+        public string UpdateMaterialBitArray(ParentNode newParentNode)
+        {
+            //We only want to update our m_ElementNodeDictionary if the parentNode is actually already in our list
+            if (this.Handle == newParentNode.Handle)
+            {
+                //Currently active IDs in the m_RealParentNodeDictionary
+                var usedIDs = GetUsedMaterialIDsArray();
+                //All of the Material IDs in parentNode
+                var newIDs = newParentNode.GetUsedMaterialIDsArray();
+
+                //All of the material IDs in parentNode - currently active IDs
+                var toBeAddedIDs = newIDs.Except(usedIDs).ToArray();
+
+                Array.Sort(toBeAddedIDs);
+                string ids = string.Empty;
+
+                for (int index = 0; index < toBeAddedIDs.Length; index++)
+                {
+                    ushort beAddedID = toBeAddedIDs[index];
+                    //Add the materialIDBitArray at the beAddedID key
+                    SetMaterialBitArray(beAddedID, newParentNode.GetMaterialBitArray(beAddedID));
+                    
+                    if (index == toBeAddedIDs.Length - 1)
+                        ids += (beAddedID + 1);
+                    else
+                        ids += beAddedID + 1 + ", ";
+                }
+
+                return ids;
+            }
+                
+            throw new UpdateMaterialBitArrayException(newParentNode);
         }
 
         /// <summary>
         /// Set the material FaceBitArray for the given material ID
         /// </summary>
-        /// <param name="matID"></param>
-        /// <param name="faceBitArray"></param>
-        public void SetMaterialBitArray(ushort matID, BitArray faceBitArray)
+        private void SetMaterialBitArray(ushort matID, BitArray faceBitArray)
         {
             if (!m_ElementNodeDictionary.ContainsKey(matID))
             {
@@ -542,7 +564,7 @@ namespace Test_ExplodeScript
             }
 
             else
-                throw new SetMaterialBitArrayException();
+                throw new SetMaterialBitArrayException(matID);
         }
         
         /// <summary>
@@ -762,507 +784,4 @@ namespace Test_ExplodeScript
         //}
     }
 
-    public class BaseNode
-    {
-        private const int MESH = 0;
-        private const int POLY = 1;
-
-        private const int TASK_MODE_MODIFY = 2;
-
-        private IInterval m_Forever;
-
-        private UIntPtr PartAll = (UIntPtr) 0xffffffff;
-        private const uint All = 0xffffffff;
-
-        private IGlobal m_Global;
-
-        //private IBitArray[] m_MaterialIDFaceBitArray;
-        private BitArray[] m_MaterialIDFaceBitArray;
-
-        private IMesh m_TriMesh;
-        private IMNMesh m_PolyMesh;
-
-
-        public BaseNode(IGlobal global, string name, uint handle)
-        {
-            m_Global = global;
-            Name = name;
-            Handle = handle;
-
-            //m_MaterialIDFaceBitArray = new IBitArray[2];
-            m_MaterialIDFaceBitArray = new BitArray[2];
-            MaterialIDSelectionBitArray = m_Global.BitArray.Create(0);
-            MaterialIDVertexList = new HashSet<int>();
-            Mesh = new MeshStruct(global);
-
-            m_Forever = m_Global.Interval.Create();
-            m_Forever.SetInfinite();
-        }
-
-        /// <summary>
-        /// Name of IIINode
-        /// </summary>
-        public string Name { get; private set; }
-
-        public IBitArray MaterialIDSelectionBitArray { get; set; }
-
-        /// <summary>
-        /// True if EditablePoly, false if EditableMesh
-        /// </summary>
-        public bool? IsPolyObject
-        {
-            get
-            {
-                return m_IsPolyObject;
-            }
-            set
-            {
-                m_IsPolyObject = value;
-                UpdateMesh();
-            }
-        }
-        private bool? m_IsPolyObject;
-
-        public MeshStruct Mesh { get; private set; }
-
-        public IINode Node { get; private set; }
-
-        public uint Handle { get; private set; }
-
-        /// <summary>
-        /// Keep list of vertex indices - let's maybe remove this one!!
-        /// </summary>
-        public HashSet<int> MaterialIDVertexList { get; set; }
-
-        //public IBitArray MaterialIDFaceArray form some reason [] operator is gone in 2014 - 2015
-        public BitArray MaterialIDFaceArray
-        {
-            get
-            {
-                switch (IsPolyObject)
-                {
-                    case true:
-                        return m_MaterialIDFaceBitArray[POLY];
-                    case false:
-                        return m_MaterialIDFaceBitArray[MESH];
-                    case null:
-                        MessageBox.Show("You should've set IsPolyObject!");
-                        return null;
-                }
-                return null;
-            }
-            set
-            {
-                switch (IsPolyObject)
-                {
-                    case true:
-                        m_MaterialIDFaceBitArray[POLY] = value;
-                        break;
-                    case false:
-                        m_MaterialIDFaceBitArray[MESH] = value;
-                        break;
-                }
-            }
-        }
-        
-        internal void UpdateMesh()
-        {
-            IInterface iface = m_Global.COREInterface;
-            IINode node = iface.GetINodeByHandle(Handle);
-                        
-            if (node == null)
-                return;
-
-            Node = node;
-
-            IObject baseObjectRef = node.ObjectRef.FindBaseObject();
-
-            if (!IsPolyObject.Value) //mesh
-            {
-                var triObj = baseObjectRef as ITriObject;
-                Mesh.TriMesh = triObj.Mesh;
-                Mesh.PolyMesh = null;
-            }
-            else
-            {
-                var polyObj = baseObjectRef as IPolyObject;
-                Mesh.PolyMesh = polyObj.Mesh;
-                Mesh.TriMesh = null;
-            }
-        }
-
-        internal void InvalidateMesh(bool hasModifiers = false)
-        {
-            IInterface iface = m_Global.COREInterface;
-
-            IObject baseObjectRef = Node.ObjectRef.FindBaseObject();
-
-            if (!IsPolyObject.Value) //mesh
-            {
-                Mesh.TriMesh.InvalidateGeomCache();
-                Mesh.TriMesh.InvalidateTopologyCache();
-
-                var triObj = baseObjectRef as ITriObject;
-
-#if (MAX_2012_DEBUG || MAX_2013_DEBUG || MAX_2014_DEBUG )
-                triObj.NotifyDependents(m_Forever, PartAll, RefMessage.Change, (SClass_ID)All, true, null);
-                triObj.NotifyDependents(m_Forever, (UIntPtr)0, RefMessage.SubanimStructureChanged, (SClass_ID)All, true, null);
-          
-#elif MAX_2015_DEBUG
-                triObj.NotifyDependents_(m_Forever, PartAll, RefMessage.Change, (SClass_ID)All, true, null);
-                triObj.NotifyDependents_(m_Forever, (UIntPtr)0, RefMessage.SubanimStructureChanged, (SClass_ID)All, true, null);
-#endif 
-            }
-
-            else
-            {
-                Mesh.PolyMesh.InvalidateGeomCache();
-                Mesh.PolyMesh.InvalidateTopoCache(false);
-
-                var polyObj = baseObjectRef as IPolyObject;
-
-#if (MAX_2012_DEBUG || MAX_2013_DEBUG || MAX_2014_DEBUG )
-                polyObj.NotifyDependents(m_Forever, PartAll, RefMessage.Change, (SClass_ID)All, true, null);
-                polyObj.NotifyDependents(m_Forever, (UIntPtr)0, RefMessage.SubanimStructureChanged, (SClass_ID)All, true, null);
-
-#elif MAX_2015_DEBUG
-                polyObj.NotifyDependents_(m_Forever, PartAll, RefMessage.Change, (SClass_ID)All, true, null);
-                polyObj.NotifyDependents_(m_Forever, (UIntPtr)0, RefMessage.SubanimStructureChanged, (SClass_ID)All, true, null);
-#endif
-            }
-
-#if (MAX_2012_DEBUG || MAX_2013_DEBUG || MAX_2014_DEBUG )
-            Node.NotifyDependents(m_Forever, PartAll, RefMessage.Change, (SClass_ID)All, true, null);
-            Node.NotifyDependents(m_Forever, (UIntPtr)0, RefMessage.SubanimStructureChanged, (SClass_ID)All, true, null);
-
-#elif MAX_2015_DEBUG
-            Node.NotifyDependents_(m_Forever, PartAll, RefMessage.Change, (SClass_ID)All, true, null);
-            Node.NotifyDependents_(m_Forever, (UIntPtr)0, RefMessage.SubanimStructureChanged, (SClass_ID)All, true, null);
-#endif
-
-            if (hasModifiers)
-            {
-                iface.CommandPanelTaskMode = TASK_MODE_MODIFY;
-                m_Global.COREInterface7.SetCurEditObject(baseObjectRef, null);
-                iface.SetSubObjectLevel(1, true);
-                iface.SetSubObjectLevel(0, true);
-                iface.DeSelectNode(Node);
-            }
-        }
-
-        internal void InvalidateModifiers()
-        {
-            IInterface iface = m_Global.COREInterface;
-
-            IObject baseObjectRef = Node.ObjectRef.FindBaseObject();
-
-            iface.CommandPanelTaskMode = TASK_MODE_MODIFY;
-            m_Global.COREInterface7.SetCurEditObject(baseObjectRef, null);
-            iface.SetSubObjectLevel(1, true);
-            iface.SetSubObjectLevel(0, true);
-            iface.DeSelectNode(Node);
-        }
-    }
-
-    public class ChildNode : BaseNode
-    {
-        public ChildNode(IGlobal global, string name, uint handle) : base(global, name, handle) { }
-
-        //public uint ParentHandle { get; set; }
-    }
-
-    public class ParentNode : BaseNode
-    {
-        public ParentNode(IGlobal global, string name, uint handle): base(global, name, handle)
-        {
-            ChildeNodeDictionaty = new Dictionary<uint, ChildNode>();
-        }
-
-        /// <summary>
-        /// Holds a list of all childNodes 
-        /// </summary>
-        //public List<ChildNode> ChildNodeList { get; set; }
-
-        public Dictionary<uint, ChildNode> ChildeNodeDictionaty { get; set; } 
-
-        /// <summary>
-        /// X, Y, Z coordinates of the Max Values for the given ID
-        /// </summary>
-        public BoundingBox BoundingBox { get; set; }
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    //public class MasterNode
-    //{
-    //    private readonly Dictionary<ushort, IBitArray>[] m_MaterialIDFaceDictionary;
-    //    private const int Mesh = 0;
-    //    private const int Poly = 1;
-
-    //    public MasterNode()
-    //    {
-    //        //Initialize our Array of Dictionaries...
-    //        m_MaterialIDFaceDictionary = new[]
-    //        {
-    //            new Dictionary<ushort, IBitArray>(),
-    //            new Dictionary<ushort, IBitArray>()
-    //        };
-    //    }
-
-    //    /// <summary>
-    //    /// Name of the object
-    //    /// </summary>
-    //    /// REMOVE
-    //    //public string Name { get; set; }
-
-    //    /// <summary>
-    //    /// True if EditablePoly, false if EditableMesh
-    //    /// </summary>
-    //    public bool? IsPolyObject { private get; set; }
-
-
-    //    /// <summary>
-    //    /// Returns the correct 
-    //    /// </summary>
-    //    public Dictionary<ushort, IBitArray> MaterialIDFaceDictionary
-    //    {
-    //        get
-    //        {
-    //            switch (IsPolyObject)
-    //            {
-    //                case true:
-    //                    return m_MaterialIDFaceDictionary[Poly];
-    //                case false:
-    //                    return m_MaterialIDFaceDictionary[Mesh];
-    //                case null:
-    //                    MessageBox.Show("You should've set IsPolyObject!");
-    //                    return null;
-    //            }
-    //            return null;
-    //        }
-    //        set
-    //        {
-    //            switch (IsPolyObject)
-    //            {
-    //                case true:
-    //                    m_MaterialIDFaceDictionary[Poly] = value;
-    //                    break;
-    //                case false:
-    //                    m_MaterialIDFaceDictionary[Mesh] = value;
-    //                    break;
-    //            }
-    //        }
-    //    }
-
-
-
-
-    //    /// <summary>
-    //    /// Hold Vertex Index per Material ID
-    //    /// </summary>
-    //    public Dictionary<ushort, HashSet<int>> MaterialIDVertexDictionary { get; set; }
-    //}
-
-    //public class VisualMatIDNode
-    //{
-    //    /// <summary>
-    //    /// Name of the object
-    //    /// </summary>
-    //    public string Name { get; set; }
-
-    //    /// <summary>
-    //    /// Holds the Handle to the object this visual node is tied to. 
-    //    /// </summary>
-    //    public uint Handle { get; set; }
-
-    //    /// <summary>
-    //    /// Holds the ID
-    //    /// </summary>
-    //    public ushort ID { get; set; }
-
-    //    /// <summary>
-    //    /// Holds the BitArray linked to the ID
-    //    /// </summary>
-    //    public IBitArray MatIDBitArray { get; set; }
-
-    //    /// <summary>
-    //    /// List of all visualNodes that share the same ID. 
-    //    /// </summary>
-    //    public List<MasterNode> ChildrenVisualMatIdNodes { get; set; } 
-    //}
 }
-
-
-
-//public class ParentNode
-//{
-//    private const int MESH = 0;
-//    private const int POLY = 1;
-
-//    private const int TASK_MODE_MODIFY = 2;
-
-//    private IInterval m_Forever;
-
-//    private UIntPtr PartAll = (UIntPtr)0xffffffff;
-//    private const uint All = 0xffffffff;
-
-//    private IGlobal m_Global;
-
-//    private IBitArray[] m_MaterialIDFaceBitArray;
-
-//    private IMesh m_TriMesh;
-//    private IMNMesh m_PolyMesh;
-
-//    public ParentNode(IGlobal global)
-//    {
-//        m_MaterialIDFaceBitArray = new IBitArray[2];
-//        MaterialIDVertexList = new HashSet<int>();
-//        ChildNodeList = new List<ChildNode>();
-
-//        m_Global = global;
-
-//        m_Forever = m_Global.Interval.Create();
-//        m_Forever.SetInfinite();
-//    }
-
-//    /// <summary>
-//    /// Name of IIINode
-//    /// </summary>
-//    public string Name { get; set; }
-
-//    /// <summary>
-//    /// True if EditablePoly, false if EditableMesh
-//    /// </summary>
-//    public bool? IsPolyObject { private get; set; }
-
-//    public IBitArray MaterialIDFaceArray
-//    {
-//        get
-//        {
-//            switch (IsPolyObject)
-//            {
-//                case true:
-//                    return m_MaterialIDFaceBitArray[POLY];
-//                case false:
-//                    return m_MaterialIDFaceBitArray[MESH];
-//                case null:
-//                    MessageBox.Show("You should've set IsPolyObject!");
-//                    return null;
-//            }
-//            return null;
-//        }
-//        set
-//        {
-//            switch (IsPolyObject)
-//            {
-//                case true:
-//                    m_MaterialIDFaceBitArray[POLY] = value;
-//                    break;
-//                case false:
-//                    m_MaterialIDFaceBitArray[MESH] = value;
-//                    break;
-//            }
-//        }
-//    }
-
-//    public Mesh Mesh
-//    {
-//        get;
-//        private set;
-//    }
-
-//    public IINode Node
-//    {
-//        get;
-//        set;
-//    }
-
-//    /// <summary>
-//    /// Keep list of vertex indices
-//    /// </summary>
-//    public HashSet<int> MaterialIDVertexList { get; set; }
-
-//    /// <summary>
-//    /// Holds a list of all childNodes 
-//    /// </summary>
-//    public List<ChildNode> ChildNodeList { get; set; }
-
-//    /// <summary>
-//    /// X, Y, Z coordinates of the Max Values for the given ID
-//    /// </summary>
-//    public BoundingBox BoundingBox { get; set; }
-
-//    //public IMesh TriMesh { get; set; }
-
-//    internal void UpdateMesh(uint handle)
-//    {
-//        IInterface iface = m_Global.COREInterface;
-//        IINode node = iface.GetINodeByHandle(handle);
-
-//        if (node == null)
-//            return;
-
-//        Node = node;
-
-//        IObject baseObjectRef = node.ObjectRef.FindBaseObject();
-
-//        if (!IsPolyObject.Value) //mesh
-//        {
-//            var triObj = baseObjectRef as ITriObject;
-//            Mesh.TriMesh = triObj.Mesh;
-//        }
-//        else
-//        {
-//            var polyObj = baseObjectRef as IPolyObject;
-//            Mesh.PolyMesh = polyObj.Mesh;
-//        }
-//    }
-
-//    internal void InvalidateMesh()
-//    {
-//        IInterface iface = m_Global.COREInterface;
-
-//        IObject baseObjectRef = Node.ObjectRef.FindBaseObject();
-
-//        if (!IsPolyObject.Value) //mesh
-//        {
-//            Mesh.TriMesh.InvalidateGeomCache();
-//            Mesh.TriMesh.InvalidateTopologyCache();
-
-//            var triObj = baseObjectRef as ITriObject;
-//            triObj.NotifyDependents(m_Forever, PartAll, RefMessage.Change, (SClass_ID)All, true, null);
-//            triObj.NotifyDependents(m_Forever, (UIntPtr)0, RefMessage.SubanimStructureChanged, (SClass_ID)All, true, null);
-//        }
-
-//        else
-//        {
-//            Mesh.PolyMesh.InvalidateGeomCache();
-//            Mesh.PolyMesh.InvalidateTopoCache(false);
-
-//            var polyObj = baseObjectRef as IPolyObject;
-//            polyObj.NotifyDependents(m_Forever, PartAll, RefMessage.Change, (SClass_ID)All, true, null);
-//            polyObj.NotifyDependents(m_Forever, (UIntPtr)0, RefMessage.SubanimStructureChanged, (SClass_ID)All, true, null);
-//        }
-
-
-//        Node.NotifyDependents(m_Forever, PartAll, RefMessage.Change, (SClass_ID)All, true, null);
-//        Node.NotifyDependents(m_Forever, (UIntPtr)0, RefMessage.SubanimStructureChanged, (SClass_ID)All, true, null);
-
-//        iface.CommandPanelTaskMode = TASK_MODE_MODIFY;
-//        m_Global.COREInterface7.SetCurEditObject(baseObjectRef, null);
-//        iface.SetSubObjectLevel(1, true);
-//        iface.SetSubObjectLevel(0, true);
-//        iface.DeSelectNode(Node);
-//    }
-//}

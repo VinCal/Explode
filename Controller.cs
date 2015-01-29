@@ -193,7 +193,7 @@ namespace Test_ExplodeScript
     {
         //private Dictionary<uint, Dictionary<ushort, ParentNode>> m_ParentNodeDictionary = new Dictionary<uint, Dictionary<ushort, ParentNode>>();
 
-        private Dictionary<uint, RealParentNode> m_RealParentNodeDictionary = new Dictionary<uint, RealParentNode>(); 
+        private Dictionary<uint, ParentNode> m_RealParentNodeDictionary = new Dictionary<uint, ParentNode>(); 
 
         private HashSet<IPoint3> m_VertList = new HashSet<IPoint3>();
 
@@ -263,7 +263,7 @@ namespace Test_ExplodeScript
             m_Global.COREInterface7.SetCurEditObject(baseObjectRef, null);
             iface.SetSubObjectLevel(4, true);
             
-            RealBaseNode baseNode;
+            BaseNode baseNode;
             if (!treeNode.isChild)
                 baseNode = m_RealParentNodeDictionary[selectedHandle];
             else
@@ -288,7 +288,7 @@ namespace Test_ExplodeScript
             iface.ForceCompleteRedraw(true);
         }
 
-        private void ConvertBitArrayToIBitArray(RealBaseNode node, ushort matID)
+        private void ConvertBitArrayToIBitArray(BaseNode node, ushort matID)
         {
             IBitArray selectionBitArray = node.GetSelectionBitArray(matID);
             BitArray computedBitArray = node.GetMaterialBitArray(matID);
@@ -305,7 +305,7 @@ namespace Test_ExplodeScript
         }
 
 
-        private GlobalDelegates.Delegate5 m_SceneResetHandler;
+        private GlobalDelegates.Delegate4 m_SceneResetHandler;
         private uint m_NodeEventID;
 
         void Global_SceneReset(IntPtr obj, IntPtr info)
@@ -396,15 +396,15 @@ namespace Test_ExplodeScript
                 DebugMethods.Log(String.Format("Node handle: {0}", node.Handle));
 
                 //New ParentNode
-                RealParentNode parentNode = null;
+                ParentNode parentNode = null;
                 //The only time we should need to check what classID our selection is. 
                 if (baseObjectRef.ClassID.OperatorEquals(m_Global.Class_ID.Create(0xe44f10b3, 0)) == 1) //Mesh
                 {
-                    parentNode = ObjectMethods.CreateNode(node, false, true) as RealParentNode;
+                    parentNode = ObjectMethods.CreateNode(node, false, true) as ParentNode;
                 }
                 else if (baseObjectRef.ClassID.OperatorEquals(m_Global.Class_ID.Create(0x1bf8338d, 0x192f6098)) == 1) //Poly
                 {
-                    parentNode = ObjectMethods.CreateNode(node, true, true) as RealParentNode;
+                    parentNode = ObjectMethods.CreateNode(node, true, true) as ParentNode;
                 }
 
                 //it wasn't an Editable Poly or Editable Mesh, or something went wrong in CreateNode()
@@ -470,32 +470,36 @@ namespace Test_ExplodeScript
                     //We don't replace the entire node with parentNode because in that case he would lose his children
                     //We do need to clear the deleted material ID set
                     parentNode.ClearDeletedMaterialIDs();
+                    var ids = m_RealParentNodeDictionary[nodeHandle].UpdateMaterialBitArray(parentNode);
+                    nodeAddedInformation = "Materials IDs added:" + ids;
 
-                    //Currently active IDs in the m_RealParentNodeDictionary
-                    var usedIDs = m_RealParentNodeDictionary[nodeHandle].GetUsedMaterialIDsArray();
-                    //All of the Material IDs in parentNode
-                    var newIDs = parentNode.GetUsedMaterialIDsArray();
+                    ////Currently active IDs in the m_RealParentNodeDictionary
+                    //var usedIDs = m_RealParentNodeDictionary[nodeHandle].GetUsedMaterialIDsArray();
+                    ////All of the Material IDs in parentNode
+                    //var newIDs = parentNode.GetUsedMaterialIDsArray();
 
-                    //All of the material IDs in parentNode - currently active IDs
-                    var toBeAddedIDs = newIDs.Except(usedIDs).ToArray();
-                    if (toBeAddedIDs.Length != 0)
-                    {
-                        Array.Sort(toBeAddedIDs);
-                        string ids = string.Empty;
+                    ////All of the material IDs in parentNode - currently active IDs
+                    //var toBeAddedIDs = newIDs.Except(usedIDs).ToArray();
+                    //if (toBeAddedIDs.Length != 0)
+                    //{
+                    //    Array.Sort(toBeAddedIDs);
+                    //    string ids = string.Empty;
 
-                        for (int index = 0; index < toBeAddedIDs.Length; index++)
-                        {
-                            ushort beAddedID = toBeAddedIDs[index];
-                            //Add the materialIDBitArray at the beAddedID key
-                            m_RealParentNodeDictionary[nodeHandle].SetMaterialBitArray(beAddedID, parentNode.GetMaterialBitArray(beAddedID));
+                    //    for (int index = 0; index < toBeAddedIDs.Length; index++)
+                    //    {
+                    //        ushort beAddedID = toBeAddedIDs[index];
+                    //        //Add the materialIDBitArray at the beAddedID key
+                    //        m_RealParentNodeDictionary[nodeHandle].SetMaterialBitArray(beAddedID, parentNode.GetMaterialBitArray(beAddedID));
 
-                            if (index == toBeAddedIDs.Length - 1)
-                                ids += (beAddedID + 1);
-                            else
-                                ids += beAddedID + 1 + ", ";
-                        }
-                        nodeAddedInformation = "Materials IDs added:" + ids;
-                    }
+                            
+
+                    //        if (index == toBeAddedIDs.Length - 1)
+                    //            ids += (beAddedID + 1);
+                    //        else
+                    //            ids += beAddedID + 1 + ", ";
+                    //    }
+                       
+                    //}
                 }
 
                 DebugMethods.Log(nodeAddedInformation);
@@ -522,16 +526,16 @@ namespace Test_ExplodeScript
                 DebugMethods.Log(node.Name);
                 DebugMethods.Log(String.Format("Node handle: {0}", node.Handle));
 
-                RealChildNode childNode = null;
+                ChildNode childNode = null;
                 //The only time we should need to check what classID our selection is. 
                 if (baseObjectRef.ClassID.OperatorEquals(m_Global.Class_ID.Create(0xe44f10b3, 0)) == 1) //Mesh
                 {
-                    childNode = ObjectMethods.CreateNode(node, false, false) as RealChildNode;
+                    childNode = ObjectMethods.CreateNode(node, false, false) as ChildNode;
                         //Cast it to a parentNode because it's our LP
                 }
                 else if (baseObjectRef.ClassID.OperatorEquals(m_Global.Class_ID.Create(0x1bf8338d, 0x192f6098)) == 1) //Poly
                 {
-                    childNode = ObjectMethods.CreateNode(node, true, false) as RealChildNode; //Cast it to a parentNode because it's our LP
+                    childNode = ObjectMethods.CreateNode(node, true, false) as ChildNode; //Cast it to a parentNode because it's our LP
                 }
 
                 if (childNode == null) continue; //it wasn't an Editable Poly or Editable Mesh, or something went wrong in 'CreateBaseNode()'
@@ -923,7 +927,7 @@ namespace Test_ExplodeScript
                 var parentNode = m_RealParentNodeDictionary[lpHandle];
 
                 //put the ParentNode and all his children in 1 list
-                var baseNodeList = new List<RealBaseNode>() { parentNode };
+                var baseNodeList = new List<BaseNode>() { parentNode };
 
                 var usedHpHandles = parentNode.GetChildHandles(lpID);
                 foreach (uint hpHandle in usedHpHandles)
@@ -938,7 +942,7 @@ namespace Test_ExplodeScript
             }
 
             var tempUniqueHpHandles = new HashSet<uint>();
-            var tempUniqueChildNodes = new List<RealChildNode>();
+            var tempUniqueChildNodes = new List<ChildNode>();
             //Invalidates every possible node. 
             var lpHandleArray = m_RealParentNodeDictionary.Keys.ToArray();
             foreach (uint lpHandle in lpHandleArray)

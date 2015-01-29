@@ -22,15 +22,15 @@ namespace ExplodeScript
             m_Global = global;
         }
 
-        public static RealBaseNode CreateNode(IINode iNode, bool isPolyObject, bool isParentNode)
+        public static BaseNode CreateNode(IINode iNode, bool isPolyObject, bool isParentNode)
         {
             //We need to create our 'RealBaseNode' 
-            RealBaseNode tempBaseNode;
+            BaseNode tempBaseNode;
 
             if (isParentNode)
-                tempBaseNode = new RealParentNode(iNode, isPolyObject);
+                tempBaseNode = new ParentNode(iNode, isPolyObject);
             else
-                tempBaseNode = new RealChildNode(iNode, isPolyObject);
+                tempBaseNode = new ChildNode(iNode, isPolyObject);
 
             IObject baseObjectRef = iNode.ObjectRef.FindBaseObject();
 
@@ -54,7 +54,7 @@ namespace ExplodeScript
                     
                     if (tempBaseNode.DoesKeyExist(matID))
                     {
-                        tempBaseNode.SetMaterialIDBitArrayBit(matID, index);
+                        tempBaseNode.SetMaterialIDBit(matID, index);
                     }
                     else
                     {
@@ -84,7 +84,7 @@ namespace ExplodeScript
                     {
                         //Same material ID, just set the bit
                         //tempBaseNode.GetMaterialBitArray(matID).Set(index, true);
-                        tempBaseNode.SetMaterialIDBitArrayBit(matID, index);
+                        tempBaseNode.SetMaterialIDBit(matID, index);
                     }
                     else
                     {
@@ -102,7 +102,7 @@ namespace ExplodeScript
         
 
 
-        public static void UpdateFaceDictionary(RealBaseNode node)
+        public static void UpdateFaceDictionary(BaseNode node)
         {
             var triMesh = node.Mesh.TriMesh;
             var polyMesh = node.Mesh.PolyMesh;
@@ -124,7 +124,7 @@ namespace ExplodeScript
                     if (!node.IsMatIDDeleted(matID))
                     {
                         if (node.DoesKeyExist(matID))
-                            node.SetMaterialIDBitArrayBit(matID, index);
+                            node.SetMaterialIDBit(matID, index);
                         else
                             node.CreateNewMaterialBitArray(matID, index, numFaces);
                     }
@@ -144,7 +144,7 @@ namespace ExplodeScript
                     if (!node.IsMatIDDeleted(matID))
                     {
                         if (node.DoesKeyExist(matID))
-                            node.SetMaterialIDBitArrayBit(matID, index);
+                            node.SetMaterialIDBit(matID, index);
                         else
                             node.CreateNewMaterialBitArray(matID, index, numFaces);
                     }
@@ -153,167 +153,7 @@ namespace ExplodeScript
         }
 
 
-        public static Dictionary<ushort, ParentNode> UpdateParentFaceDictionary(uint handle, bool isPolyObject)
-        {
-            var tempMatIDFaceDictionary = new Dictionary<ushort, ParentNode>();
-            IInterface iface = m_Global.COREInterface;
-            IINode node = iface.GetINodeByHandle(handle);
-
-            IObject baseObjectRef = node.ObjectRef.FindBaseObject();
-
-            if (!isPolyObject) //mesh
-            {
-                ITriObject triObj = baseObjectRef as ITriObject;
-                IMesh mesh = triObj.Mesh;
-
-                var numFaces = mesh.NumFaces;
-
-                //Build FaceID Dictionary.
-                //Fill up temp Dictionary for each
-                for (int index = 0; index < numFaces; index++)
-                {
-                    IFace face = mesh.Faces[index];
-                    ushort matID = face.MatID;
-
-                    if (tempMatIDFaceDictionary.ContainsKey(matID))
-                    {
-                        //Same material ID, just set the bit
-                        tempMatIDFaceDictionary[matID].MaterialIDFaceArray.Set(index, true);
-                    }
-                    else
-                    {
-                        //We need to create a Parent node for each ID
-                        var parentNode = new ParentNode(m_Global, node.Name, node.Handle) { IsPolyObject = false };
-                        //new matID found, make empty bitArray and set the bit
-                        BitArray tempBitArray = new BitArray(numFaces);
-                        //Set bit (index)
-                        tempBitArray.Set(index, true);
-                        //Assign BitArray to parentNode
-                        parentNode.MaterialIDFaceArray = tempBitArray;
-                        //Add to dictionary
-                        tempMatIDFaceDictionary.Add(matID, parentNode);
-                    }
-                }
-            }
-            else
-            {
-                IPolyObject triObj = baseObjectRef as IPolyObject;
-                IMNMesh mesh = triObj.Mesh;
-
-                var numFaces = mesh.FNum;
-
-                //Build FaceID Dictionary.
-                //Fill up temp Dictionary for each
-                for (int index = 0; index < numFaces; index++)
-                {
-                    IMNFace face = mesh.F(index);
-                    ushort matID = face.Material;
-
-                    if (tempMatIDFaceDictionary.ContainsKey(matID))
-                    {
-                        //Same material ID, just set the bit
-                        tempMatIDFaceDictionary[matID].MaterialIDFaceArray.Set(index, true);
-                    }
-                    else
-                    {
-                        //We need to create a Parent node for each ID
-                        var parentNode = new ParentNode(m_Global, node.Name, node.Handle) { IsPolyObject = true };
-                        //new matID found, make empty bitArray and set the bit
-                        BitArray tempBitArray = new BitArray(numFaces);
-                        //Set bit (index)
-                        tempBitArray.Set(index, true);
-                        //Assign BitArray to parentNode
-                        parentNode.MaterialIDFaceArray = tempBitArray;
-                        //Add to dictionary
-                        tempMatIDFaceDictionary.Add(matID, parentNode);
-                    }
-                }
-            }
-
-            return tempMatIDFaceDictionary;
-        }
-
-        public static Dictionary<ushort, ChildNode> UpdateChildFaceDictionary(uint handle, bool isPolyObject)
-        {
-            var tempMatIDFaceDictionary = new Dictionary<ushort, ChildNode>();
-            IInterface iface = m_Global.COREInterface;
-            IINode node = iface.GetINodeByHandle(handle);
-
-            IObject baseObjectRef = node.ObjectRef.FindBaseObject();
-
-            if (!isPolyObject) //mesh
-            {
-                ITriObject triObj = baseObjectRef as ITriObject;
-                IMesh mesh = triObj.Mesh;
-
-                var numFaces = mesh.NumFaces;
-
-                //Build FaceID Dictionary.
-                //Fill up temp Dictionary for each
-                for (int index = 0; index < numFaces; index++)
-                {
-                    IFace face = mesh.Faces[index];
-                    ushort matID = face.MatID;
-
-                    if (tempMatIDFaceDictionary.ContainsKey(matID))
-                    {
-                        //Same material ID, just set the bit
-                        tempMatIDFaceDictionary[matID].MaterialIDFaceArray.Set(index, true);
-                    }
-                    else
-                    {
-                        //We need to create a Parent node for each ID
-                        var parentNode = new ChildNode(m_Global, node.Name, handle) { IsPolyObject = false };
-                        //new matID found, make empty bitArray and set the bit
-                        BitArray tempBitArray = new BitArray(numFaces);
-                        //Set bit (index)
-                        tempBitArray.Set(index, true);
-                        //Assign BitArray to parentNode
-                        parentNode.MaterialIDFaceArray = tempBitArray;
-                        //Add to dictionary
-                        tempMatIDFaceDictionary.Add(matID, parentNode);
-                    }
-                }
-            }
-            //else
-            //{
-            //    IPolyObject triObj = baseObjectRef as IPolyObject;
-            //    IMNMesh mesh = triObj.Mesh;
-
-            //    var numFaces = mesh.FNum;
-
-            //    //Build FaceID Dictionary.
-            //    //Fill up temp Dictionary for each
-            //    for (int index = 0; index < numFaces; index++)
-            //    {
-            //        IMNFace face = mesh.F(index);
-            //        ushort matID = face.Material;
-
-            //        if (tempMatIDFaceDictionary.ContainsKey(matID))
-            //        {
-            //            //Same material ID, just set the bit
-            //            tempMatIDFaceDictionary[matID].MaterialIDFaceArray.Set(index);
-            //        }
-            //        else
-            //        {
-            //            //We need to create a Parent node for each ID
-            //            var parentNode = new BaseNode(m_Global, node.Name, node.Handle) { IsPolyObject = true };
-            //            //new matID found, make empty bitArray and set the bit
-            //            IBitArray tempBitArray = m_Global.BitArray.Create(numFaces);
-            //            //Set bit (index)
-            //            tempBitArray.Set(index);
-            //            //Assign BitArray to parentNode
-            //            parentNode.MaterialIDFaceArray = tempBitArray;
-            //            //Add to dictionary
-            //            tempMatIDFaceDictionary.Add(matID, parentNode);
-            //        }
-            //    }
-            //}
-
-            return tempMatIDFaceDictionary;
-        }
-
-        public static unsafe void BuildBoundingBox(RealParentNode parentNode, ushort matID)
+        public static unsafe void BuildBoundingBox(ParentNode parentNode, ushort matID)
         {
             var node = parentNode.INode;
 
@@ -421,114 +261,6 @@ namespace ExplodeScript
 
         }
 
-        public static unsafe void BuildBoundingBox(ParentNode parentNode)
-        {
-            var node = parentNode.Node;
-
-            var world = node.GetObjTMAfterWSM(0, null);
-            var local = world;
-
-            if (!node.IsRootNode)
-            {
-                IMatrix3 m3Parent = node.ParentNode.GetObjTMAfterWSM(0, null);
-                local = world.Multiply(m_Global.Inverse(m3Parent));
-            }
-
-            if (parentNode.Mesh.TriMesh != null) //mesh
-            {
-                var mesh = parentNode.Mesh.TriMesh;
-
-                BitArray facesPerID = parentNode.MaterialIDFaceArray;
-
-
-                float? xMaxValue = null, xMinValue = null;
-                float? yMaxValue = null, yMinValue = null;
-                float? zMaxValue = null, zMinValue = null;
-
-                IPoint3 maxValues, minValues;
-
-                //loop through the bitarray to see which faces are set. For the set faces, save the verts
-                for (int i = 0; i < facesPerID.Count; i++)
-                {
-                    if (facesPerID[i])
-                    {
-                        //This should be a singular face that has the defined ID
-                        IFace face = mesh.Faces[i];
-
-                        IntPtr vertsIndices = face.AllVerts;
-
-                        uint* dwordVertIndices = (uint*) vertsIndices.ToPointer();
-
-                        for (int j = 0; j < 3; j++)
-                        {
-                            var vertexIndex = (int) dwordVertIndices[j];
-
-                            //Maybe don't hold giant lists of vertex indices - just do it while we loop over them all
-                            parentNode.MaterialIDVertexList.Add(vertexIndex);
-
-                            var pos = mesh.GetVert(vertexIndex);
-                            pos = local.PointTransform(pos);
-
-                            FindMaxMinValues(   ref xMaxValue, ref xMinValue,
-                                                ref yMaxValue, ref yMinValue,
-                                                ref zMaxValue, ref zMinValue, pos);
-                        }
-                    }
-                }
-
-                maxValues = m_Global.Point3.Create(xMaxValue.Value, yMaxValue.Value, zMaxValue.Value);
-                minValues = m_Global.Point3.Create(xMinValue.Value, yMinValue.Value, zMinValue.Value);
-
-                var bb = new BoundingBox(maxValues, minValues);
-
-                parentNode.BoundingBox = bb;
-            }
-            else
-            {
-                var mesh = parentNode.Mesh.PolyMesh;
-
-                //Get the bitArray for each ID
-                BitArray facesPerID = parentNode.MaterialIDFaceArray;
-
-                float? xMaxValue = null, xMinValue = null;
-                float? yMaxValue = null, yMinValue = null;
-                float? zMaxValue = null, zMinValue = null;
-
-                IPoint3 maxValues, minValues;
-
-                //loop through the bitarray to see which faces are set. For the set faces, save the verts
-                for (int i = 0; i < facesPerID.Count; i++)
-                {
-                    if (facesPerID[i])
-                    {
-                        //This should be a singular face that has the defined ID
-                        IMNFace face = mesh.F(i);
-                        IList<int> vertIndices = face.Vtx;
-
-                        foreach (var vertexIndex in vertIndices)
-                        {
-                            parentNode.MaterialIDVertexList.Add(vertexIndex);
-
-                            var pos = mesh.P(vertexIndex);
-                            pos = local.PointTransform(pos);
-
-                            FindMaxMinValues(ref xMaxValue, ref xMinValue,
-                                ref yMaxValue, ref yMinValue,
-                                ref zMaxValue, ref zMinValue, pos);
-                        }
-                    }
-                }
-
-                maxValues = m_Global.Point3.Create(xMaxValue.Value, yMaxValue.Value, zMaxValue.Value);
-                minValues = m_Global.Point3.Create(xMinValue.Value, yMinValue.Value, zMinValue.Value);
-
-                var bb = new BoundingBox(maxValues, minValues);
-
-                parentNode.BoundingBox = bb;
-            }
-
-        }
-
         private static void FindMaxMinValues(   ref float? xMaxValue, ref float? xMinValue,
                                                 ref float? yMaxValue, ref float? yMinValue,
                                                 ref float? zMaxValue, ref float? zMinValue,
@@ -586,7 +318,7 @@ namespace ExplodeScript
             bb.Min = newWorldMinPos;
         }
 
-        internal static unsafe void ExplodeNode(RealBaseNode baseNode, IPoint3 moveValue, ushort matID)
+        internal static unsafe void ExplodeNode(BaseNode baseNode, IPoint3 moveValue, ushort matID)
         {
             //A node is a part of an IIINode, it's a matID part of the real IINode
             var node = baseNode.INode;
@@ -690,14 +422,6 @@ namespace ExplodeScript
             //Convert back to local space
             return (m3LocalInverse.PointTransform(worldPos));
         }
-
-
-
-
-
-
-
-
     }
 }
 

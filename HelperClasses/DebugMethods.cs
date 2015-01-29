@@ -29,31 +29,5 @@ namespace Test_ExplodeScript
             bool res = false;
             return m_Global.ExecuteScript(m_Global.StringStream.Create(str), /*ref */res);
         }
-
-        //[Conditional("DEBUG")]
-        //private void DebugList()
-        //{
-        //    foreach (var masterNode in m_MasterNodeList)
-        //    {
-        //        var arrayOfAllIDs = masterNode.MaterialIDDictionary.Keys.ToArray();
-
-        //        foreach (ushort id in arrayOfAllIDs)
-        //        {
-        //            IBitArray IDFacesBitArray = GetFacesByID(id, masterNode);
-
-        //            int faceCount = 0;
-        //            for (int j = 0; j < IDFacesBitArray.Size; j++)
-        //            {
-        //                //bit set
-        //                if (IDFacesBitArray[j] == 1)
-        //                    ++faceCount;
-        //            }
-
-        //            HelperMethods.Log(masterNode.Handle.ToString());
-        //            HelperMethods.Log(String.Format("The amount of faces for ID: {0} is: {1}", id, faceCount));
-        //            HelperMethods.Log("------------------");
-        //        }
-        //    }
-        //}
     }
 }

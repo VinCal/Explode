@@ -121,21 +121,17 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Autodesk.Max, Version=17.2.259.0, Culture=neutral, processorArchitecture=MSIL">
+    <Reference Include="Autodesk.Max, Version=1.2.8.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\Program Files\Autodesk\3ds Max 2015\Autodesk.Max.dll</HintPath>
-    </Reference>
-    <Reference Include="CSharpUtilities, Version=17.2.259.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\Program Files\Autodesk\3ds Max 2015\CSharpUtilities.dll</HintPath>
+      <HintPath>C:\Program Files\Autodesk\3ds Max 2012\Autodesk.Max.dll</HintPath>
     </Reference>
     <Reference Include="ManagedServices, Version=0.0.0.0, Culture=neutral, processorArchitecture=AMD64">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\Program Files\Autodesk\3ds Max 2015\ManagedServices.dll</HintPath>
+      <HintPath>C:\Program Files\Autodesk\3ds Max 2012\ManagedServices.dll</HintPath>
     </Reference>
-    <Reference Include="MaxCustomControls, Version=17.2.259.0, Culture=neutral, processorArchitecture=AMD64">
+    <Reference Include="MaxCustomControls, Version=14.0.0.121, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\Program Files\Autodesk\3ds Max 2015\MaxCustomControls.dll</HintPath>
+      <HintPath>C:\Program Files\Autodesk\3ds Max 2012\MaxCustomControls.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.QualityTools.Testing.Fakes, Version=11.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="PresentationCore" />
@@ -148,17 +144,12 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
-    <Reference Include="UiViewModels, Version=17.2.259.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\Program Files\Autodesk\3ds Max 2015\UiViewModels.dll</HintPath>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Constants.cs" />
     <Compile Include="Controller.cs" />
+    <Compile Include="CustomExceptions.cs" />
     <Compile Include="MasterNode.cs" />
     <Compile Include="HelperClasses\AribitraryWindow.cs" />
-    <Compile Include="NotifyCallbackClass.cs" />
     <Compile Include="ObjectMethods.cs" />
     <Compile Include="PluginClass.cs" />
     <Compile Include="UI\ButtonLabel.cs">
@@ -168,7 +159,6 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="HelperClasses\DebugMethods.cs" />
-    <Compile Include="HelperClasses\HelperMethods.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="UI\MaxFormEx.cs">
       <SubType>Form</SubType>
