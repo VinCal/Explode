@@ -573,6 +573,12 @@ namespace Test_ExplodeScript
                                     DebugText = String.Format("{0} has already been added as childNode", childNode.Name);
                             }
                         }
+                        else
+                        {
+                            //So we have more IDs in the HP than in the LP - we need to make placeHolder nodes so we can store them
+                            m_RealParentNodeDictionary[lpHandle].SetPlaceHolderID(hpID);
+                            m_RealParentNodeDictionary[lpHandle].SetChild(hpID, childNode);
+                        }
                     }
                 }
             }
@@ -916,7 +922,7 @@ namespace Test_ExplodeScript
 
                     if (CollisionCheck(a.BoundingBox, b.BoundingBox))
                     {
-                        MoveCollisionBoxWhile(ref a, ref b);
+                        MoveCollisionBoxWhile(a, b);
                     }
                 }
             }
@@ -1005,13 +1011,13 @@ namespace Test_ExplodeScript
             return true;
         }
 
-        void MoveCollisionBoxWhile(ref BoundingBoxHandleID a, ref BoundingBoxHandleID b)
+        void MoveCollisionBoxWhile(BoundingBoxHandleID a, BoundingBoxHandleID b)
         {
             //rewrite with while... //this is fine for the first test, but we should now test against all others again...
             while (CollisionCheck(a.BoundingBox, b.BoundingBox))
             {
                 var smallestValueStruct = FindSmallestValue(a, b);
-                MoveBox(ref b, smallestValueStruct);
+                MoveBox(b, smallestValueStruct);
 
                 for (int i = 0; i < m_SortedList.Count; i++)
                 {
@@ -1080,7 +1086,7 @@ namespace Test_ExplodeScript
             return sortedMoveValues[index];
         }
 
-        private void MoveBox(ref BoundingBoxHandleID movingBox, MoveStruct smallestValue)
+        private void MoveBox(BoundingBoxHandleID movingBox, MoveStruct smallestValue)
         {
             var box = movingBox.BoundingBox;
 

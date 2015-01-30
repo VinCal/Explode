@@ -202,6 +202,9 @@ namespace Test_ExplodeScript
             }
         }
 
+        /// <summary>
+        /// Returns if the node at matID is a placeholder node
+        /// </summary>
         public bool IsPlaceHolder(ushort matID)
         {
             if (m_ElementParentNodeDictionary.ContainsKey(matID))
@@ -279,15 +282,10 @@ namespace Test_ExplodeScript
             return m_ElementParentNodeDictionary[matID].ChildNodeDictionary.Keys.ToArray();
         }
 
-        //public bool DoesChildKeyExist(ushort matID, uint hpHandle)
-        //{
-        //    return m_ElementParentNodeDictionary[matID].ChildeNodeDictionary.ContainsKey(hpHandle);
-        //}
-
         public HashSet<ChildNode> GetUniqueChildNodes()
         {
             //we need to loop over each lp ID and keep unique handles / unique childNodes
-            HashSet<ChildNode> tempChildNodes = new HashSet<ChildNode>();
+            var tempChildNodes = new HashSet<ChildNode>();
 
             var usedLpIDs = GetUsedMaterialIDsArray();
 
@@ -299,9 +297,7 @@ namespace Test_ExplodeScript
 
                 foreach (uint hpHandle in usedHpHandles)
                 {
-                    //so now we can loop over every childNode, but we only want to keep the unique ones
-                    //if (tempUniqueHandles.Add(hpHandle))
-                        tempChildNodes.Add(m_ElementParentNodeDictionary[lpID].ChildNodeDictionary[hpHandle]);
+                    tempChildNodes.Add(m_ElementParentNodeDictionary[lpID].ChildNodeDictionary[hpHandle]);
                 }
             }
             return tempChildNodes;
