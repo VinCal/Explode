@@ -271,29 +271,59 @@ namespace Test_ExplodeScript
             else
                 iface.SelectNode(node, true);
 
+            //if (!treeNode.isChild)
+            //{
+            //    if (m_RealParentNodeDictionary[selectedHandle].IsPlaceHolder(matID))
+            //    {
+            //        iface.CommandPanelTaskMode = TASK_MODE_MODIFY;
+            //        IObject baseObjectRef = node.ObjectRef.FindBaseObject();
+            //        m_Global.COREInterface7.SetCurEditObject(baseObjectRef, null);
+            //        iface.SetSubObjectLevel(4, true);
+
+
+            //    }
+            //}
+
             iface.CommandPanelTaskMode = TASK_MODE_MODIFY;
             IObject baseObjectRef = node.ObjectRef.FindBaseObject();
             m_Global.COREInterface7.SetCurEditObject(baseObjectRef, null);
             iface.SetSubObjectLevel(4, true);
-            
+
             BaseNode baseNode;
             if (!treeNode.isChild)
                 baseNode = m_RealParentNodeDictionary[selectedHandle];
             else
                 baseNode = m_RealParentNodeDictionary[parentHandle].GetChild(matID, selectedHandle);
 
+            var parentNode = baseNode as ParentNode;
             if (baseNode.Mesh.PolyMesh != null) //editable poly
             {
                 var mesh = baseNode.Mesh.PolyMesh;
-                ConvertBitArrayToIBitArray(baseNode, matID);
-                mesh.FaceSelect(baseNode.GetSelectionBitArray(matID));
+                if (parentNode != null && parentNode.IsPlaceHolder(matID))
+                {
+                    IBitArray empty = m_Global.BitArray.Create();
+                    mesh.FaceSelect(empty);
+                }
+                else
+                {
+                    ConvertBitArrayToIBitArray(baseNode, matID);
+                    mesh.FaceSelect(baseNode.GetSelectionBitArray(matID));
+                }
             }
 
             else //mesh
             {
                 var mesh = baseNode.Mesh.TriMesh;
-                ConvertBitArrayToIBitArray(baseNode, matID);
-                mesh.FaceSel = baseNode.GetSelectionBitArray(matID);
+                if (parentNode != null && parentNode.IsPlaceHolder(matID))
+                {
+                    IBitArray empty = m_Global.BitArray.Create();
+                    mesh.FaceSel = empty;
+                }
+                else
+                {
+                    ConvertBitArrayToIBitArray(baseNode, matID);
+                    mesh.FaceSel = baseNode.GetSelectionBitArray(matID);
+                }
             }
 
             //This line makes it so the commandPanel updates again showing the correct Material ID for the selection
@@ -488,10 +518,11 @@ namespace Test_ExplodeScript
                     //We don't replace the entire node with parentNode because in that case he would lose his children
                     //We do need to clear the deleted material ID set
                     var ids = m_RealParentNodeDictionary[nodeHandle].UpdateMaterialBitArray(parentNode);
+                    
                     if (ids.Any())
                     {
-                        parentNode.ClearDeletedMaterialIDs();
-                        nodeAddedInformation = "Materials IDs added:" + ids;
+                        m_RealParentNodeDictionary[nodeHandle].ClearDeletedMaterialIDs();
+                        nodeAddedInformation = "Materials IDs added: " + ids;
                         succes = true;
                     }
                     else
@@ -539,7 +570,6 @@ namespace Test_ExplodeScript
                 }
 
                 if (childNode == null) continue; //it wasn't an Editable Poly or Editable Mesh, or something went wrong in 'CreateBaseNode()'
-
                 
                 var hpNodeHandle = node.Handle;
 
@@ -557,28 +587,29 @@ namespace Test_ExplodeScript
                     //Get all lp IDs
                     var usedLpIDs = m_RealParentNodeDictionary[lpHandle].GetUsedMaterialIDsArray();
 
-                    //Check if they match
-                    foreach (var lpID in usedLpIDs)
-                    foreach (var hpID in usedHpIDs)
+                    //matching ones:
+                    var matchedIDs = usedLpIDs.Intersect(usedHpIDs);
+                    //bool? result
+                    foreach (ushort hpID in matchedIDs)
                     {
-                        if (lpID == hpID)
-                        {
-                            if (lpHandle != hpNodeHandle) //you don't want a parent and a child to be the same object
-                            {
-                                childNode.ParentHandle = lpHandle;
-                                var result = m_RealParentNodeDictionary[lpHandle].SetChild(lpID, childNode);
-                                if (result)
-                                    DebugText = String.Format("Successfully added {0} as childNode", childNode.Name);
-                                else
-                                    DebugText = String.Format("{0} has already been added as childNode", childNode.Name);
-                            }
-                        }
-                        else
-                        {
-                            //So we have more IDs in the HP than in the LP - we need to make placeHolder nodes so we can store them
-                            m_RealParentNodeDictionary[lpHandle].SetPlaceHolderID(hpID);
-                            m_RealParentNodeDictionary[lpHandle].SetChild(hpID, childNode);
-                        }
+                       if (lpHandle != hpNodeHandle) //you don't want a parent and a child to be the same object
+                       {
+                           childNode.ParentHandle = lpHandle;
+                           var result = m_RealParentNodeDictionary[lpHandle].SetChild(hpID, childNode);
+                       } 
+                    }
+                    //if (result)
+                    //    DebugText = String.Format("Successfully added {0} as childNode", childNode.Name);
+                    //else
+                    //    DebugText = String.Format("{0} has already been added as childNode", childNode.Name);
+
+
+                    //non matching ones:
+                    var placeHolderIDs = usedHpIDs.Except(usedLpIDs);
+                    foreach (ushort hpID in placeHolderIDs)
+                    {
+                        m_RealParentNodeDictionary[lpHandle].SetPlaceHolderID(hpID);
+                        m_RealParentNodeDictionary[lpHandle].SetChild(hpID, childNode);
                     }
                 }
             }
@@ -653,34 +684,40 @@ namespace Test_ExplodeScript
 
                             //there is a chance none of them get parented - then we have rogue HP objects, we should have a 
                             //placeholder parent: Missing - MatID: id
-                            
-                            foreach (ushort usedLpID in usedLpIDs)
+
+                            //We need 3 lists, a delete ID list and a newID list, but it could be that the new ID has a LP ID
+                            //Delete List
+                            //New new list (with placeHolderNodes)
+                            //Add back to LP node list
                             foreach (ushort deleteID in deleteIDs)
                             {
-                                if (usedLpID == deleteID)
+                                parentNode.DeleteChild(uniqueChildNode.Handle, deleteID);
+                                //If there are no more children in this parentNode and it's a placeHolder node then we should delete it
+                                if (parentNode.IsPlaceHolder(deleteID) && parentNode.GetChildHandles(deleteID).Count() == 0)
                                 {
-                                    parentNode.DeleteChild(uniqueChildNode.Handle, deleteID);
+                                    m_RealParentNodeDictionary[parentNode.Handle].RemovePlaceholderNode(deleteID);
                                 }
                             }
 
-                            //I think, they must all be new-new. Not used by any LP - this means we need to make a parentNode placeholder
-                            foreach (ushort newID in newIDs)
+                            //now either add a new placeholder or set it as a child to an already existing node
+                            var matchIDs = newIDs.Intersect(usedLpIDs);
+                            if (matchIDs.Any())
                             {
-                                //do we need a new parentNode? Or can we just mark this ID as placeholder! this is what we should do
-                                parentNode.SetPlaceHolderID(newID);
-                                parentNode.SetChild(newID, uniqueChildNode);
+                                foreach (ushort matchID in matchIDs)
+                                {
+                                    parentNode.SetChild(matchID, uniqueChildNode);
+                                }
+                                
                             }
-                            
-                            //I'm pretty sure this can never happen, because it's a new ID - perhaps later TODO come back to this 
-                            //foreach (ushort usedLpID in usedLpIDs)
-                            //foreach (ushort newID in newIDs)
-                            //{
-                            //    if (usedLpID == newID)
-                            //    {
-                            //        //can this ever happen?
-                            //        parentNode.SetChild(uniqueChildNode.Handle, newID, uniqueChildNode);
-                            //    }
-                            //}
+                            else
+                            {
+                                foreach (ushort newID in newIDs)
+                                {
+                                    //do we need a new parentNode? Or can we just mark this ID as placeholder! this is what we should do
+                                    parentNode.SetPlaceHolderID(newID);
+                                    parentNode.SetChild(newID, uniqueChildNode);
+                                }
+                            }
                         }
                     }
                 }
@@ -831,7 +868,7 @@ namespace Test_ExplodeScript
 
                     if (m_RealParentNodeDictionary[lpHandle].IsPlaceHolder(lpID))
                     {
-                        lpNode = new TreeNodeEx(lpHandle, lpID, String.Format("Missing - MatID: {0}", lpID + 1), false);
+                        lpNode = new TreeNodeEx(lpHandle, lpID, String.Format("Missing LP - MatID: {0}", lpID + 1), false);
                         lpNode.ForeColor = Color.FromArgb(235, 63, 63);
                     }
                     else

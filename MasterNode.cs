@@ -151,6 +151,66 @@ namespace Test_ExplodeScript
 
 
         /// <summary>
+        /// Updates the Material Bit Array with the data of newParentNode
+        /// </summary>
+        public string UpdateMaterialBitArray(ParentNode newParentNode)
+        {
+            //We only want to update our m_ElementNodeDictionary if the parentNode is actually already in our list
+            if (this.Handle == newParentNode.Handle)
+            {
+                //Currently active IDs in the m_RealParentNodeDictionary
+                var usedIDs = GetUsedMaterialIDsArray();
+                //All of the Material IDs in parentNode
+                var newIDs = newParentNode.GetUsedMaterialIDsArray();              
+
+                //All of the material IDs in parentNode - currently active IDs
+                var toBeAddedIDs = newIDs.Except(usedIDs).ToArray();
+
+                Array.Sort(toBeAddedIDs);
+                string ids = string.Empty;
+
+                //Nodes that were deleted with no kids - so no placeholder nodes
+                foreach (ushort beAddedID in toBeAddedIDs)
+                {
+                    //Add the materialIDBitArray at the beAddedID key
+                    SetMaterialBitArray(beAddedID, newParentNode.GetMaterialBitArray(beAddedID));
+                    
+                    ids += beAddedID + 1 + ", ";
+                }
+
+                
+                //Now we check for placeholder nodes - they have children so we need to add them again too 
+                var placeHolderIDs = GetPlaceholderIDs();
+
+                var tempChildNodeList = new List<ChildNode>();
+                foreach (ushort placeHolderID in placeHolderIDs)
+                {
+                    //Get the all the children of the placeholder
+                    var childHandles = GetChildHandles(placeHolderID);
+                    foreach (uint childHandle in childHandles)
+                    {
+                        tempChildNodeList.Add(GetChild(placeHolderID, childHandle));
+                    }
+
+                    //Remove the placeHolder
+                    RemovePlaceholderNode(placeHolderID);
+
+                    SetMaterialBitArray(placeHolderID, newParentNode.GetMaterialBitArray(placeHolderID));
+                    foreach (ChildNode childNode in tempChildNodeList)
+                    {
+                        SetChild(placeHolderID, childNode);
+                    }
+
+                    ids += placeHolderID + 1 + ", ";
+                }
+
+                return ids.Remove(ids.Length - 2); //remove , from last one
+            }
+                
+            throw new UpdateMaterialBitArrayException(newParentNode);
+        }
+
+        /// <summary>
         /// Sets boundingBox for the given ID
         /// </summary>
         /// <param name="matID">Material ID linked with this BB</param>
@@ -192,8 +252,8 @@ namespace Test_ExplodeScript
             {
                 var tempElementParentNode = new ElementParentNode() {Placeholder = true};
 
-                m_ElementParentNodeDictionary.Add(matID, tempElementParentNode);
 
+                m_ElementParentNodeDictionary.Add(matID, tempElementParentNode);
                 m_ElementNodeDictionary.Add(matID, null);
             }
             else
@@ -210,6 +270,40 @@ namespace Test_ExplodeScript
             if (m_ElementParentNodeDictionary.ContainsKey(matID))
                 return m_ElementParentNodeDictionary[matID].Placeholder;
             return false;
+        }
+
+        /// <summary>
+        /// Removes placeholder node at given key (matID)
+        /// </summary>
+        public void RemovePlaceholderNode(ushort matID)
+        {
+            if (m_ElementParentNodeDictionary.ContainsKey(matID))
+            {
+                if (m_ElementParentNodeDictionary[matID].Placeholder)
+                {
+                    m_ElementNodeDictionary.Remove(matID);
+                    m_ElementParentNodeDictionary.Remove(matID);
+                }
+                else
+                    throw new Exception("tried to delete placeholder node but the node isn't set as one.");
+            }
+            else
+            {
+                throw new Exception("The node isn't present in the dictionary");
+            }
+        }
+
+        private HashSet<ushort> GetPlaceholderIDs()
+        {
+            var tempSet = new HashSet<ushort>();
+
+            var usedMatIDS = m_ElementParentNodeDictionary.Keys.ToArray();
+            foreach (ushort matID in usedMatIDS.Where(matID => m_ElementParentNodeDictionary[matID].Placeholder))
+            {
+                tempSet.Add(matID);
+            }
+
+            return tempSet;
         }
 
         /// <summary>
@@ -282,6 +376,15 @@ namespace Test_ExplodeScript
             return m_ElementParentNodeDictionary[matID].ChildNodeDictionary.Keys.ToArray();
         }
 
+
+        //public void getChildDict(ushort matID)
+        //{
+        //    //if (!m_ElementParentNodeDictionary.ContainsKey(matID))
+        //    //    return emptyArray;
+        //    //if (m_ElementParentNodeDictionary[matID].ChildNodeDictionary == null)
+        //    //    return emptyArray;
+        //}
+
         public HashSet<ChildNode> GetUniqueChildNodes()
         {
             //we need to loop over each lp ID and keep unique handles / unique childNodes
@@ -332,8 +435,8 @@ namespace Test_ExplodeScript
         private const uint  All = 0xffffffff;
         //------------------
 
-        private IInterval m_Forever;
-        private UIntPtr PartAll = (UIntPtr)0xffffffff;
+        private readonly IInterval m_Forever;
+        private readonly UIntPtr PartAll = (UIntPtr)0xffffffff;
 
         #region Private Datamembers
         /// <summary>
@@ -393,7 +496,7 @@ namespace Test_ExplodeScript
         /// <summary>
         /// This keeps track if it's a placeholder node - that means you won't be able to click it, text is red, ...
         /// </summary>
-        public bool Placeholder{ get; private set; }
+        //public bool Placeholder{ get; private set; }
 
         #endregion
 
@@ -421,7 +524,7 @@ namespace Test_ExplodeScript
 
             m_DeletedMaterialIDs = new HashSet<ushort>();
 
-            Placeholder = false;
+            //Placeholder = false;
         }
 
         /// <summary>
@@ -438,7 +541,7 @@ namespace Test_ExplodeScript
 
             m_DeletedMaterialIDs = new HashSet<ushort>();
 
-            Placeholder = true;
+            //Placeholder = true;
         }
 
         /// <summary>
@@ -504,48 +607,10 @@ namespace Test_ExplodeScript
                 throw new SetMaterialBitException(matID, index);
         }
 
-
-        /// <summary>
-        /// Updates the Material Bit Array with the data of newParentNode
-        /// </summary>
-        public string UpdateMaterialBitArray(ParentNode newParentNode)
-        {
-            //We only want to update our m_ElementNodeDictionary if the parentNode is actually already in our list
-            if (this.Handle == newParentNode.Handle)
-            {
-                //Currently active IDs in the m_RealParentNodeDictionary
-                var usedIDs = GetUsedMaterialIDsArray();
-                //All of the Material IDs in parentNode
-                var newIDs = newParentNode.GetUsedMaterialIDsArray();
-
-                //All of the material IDs in parentNode - currently active IDs
-                var toBeAddedIDs = newIDs.Except(usedIDs).ToArray();
-
-                Array.Sort(toBeAddedIDs);
-                string ids = string.Empty;
-
-                for (int index = 0; index < toBeAddedIDs.Length; index++)
-                {
-                    ushort beAddedID = toBeAddedIDs[index];
-                    //Add the materialIDBitArray at the beAddedID key
-                    SetMaterialBitArray(beAddedID, newParentNode.GetMaterialBitArray(beAddedID));
-                    
-                    if (index == toBeAddedIDs.Length - 1)
-                        ids += (beAddedID + 1);
-                    else
-                        ids += beAddedID + 1 + ", ";
-                }
-
-                return ids;
-            }
-                
-            throw new UpdateMaterialBitArrayException(newParentNode);
-        }
-
         /// <summary>
         /// Set the material FaceBitArray for the given material ID
         /// </summary>
-        private void SetMaterialBitArray(ushort matID, BitArray faceBitArray)
+        protected void SetMaterialBitArray(ushort matID, BitArray faceBitArray)
         {
             if (!m_ElementNodeDictionary.ContainsKey(matID))
             {
