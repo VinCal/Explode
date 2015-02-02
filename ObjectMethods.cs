@@ -110,9 +110,11 @@ namespace ExplodeScript
             //clear the materialFaceDictionary
             node.ClearMaterialBitArray();
 
+
             if (node.Mesh.TriMesh != null)
             {
                 var numFaces = triMesh.NumFaces;
+                var parentNode = node as ParentNode;
 
                 //Build FaceID Dictionary.
                 for (int index = 0; index < numFaces; index++)
@@ -120,19 +122,22 @@ namespace ExplodeScript
                     IFace face = triMesh.Faces[index];
                     ushort matID = face.MatID;
 
-                    //if the material ID has been deleted - don't add it
-                    if (!node.IsMatIDDeleted(matID))
+                    //This means it's a child node
+                    if (parentNode == null)
                     {
-                        if (node.DoesKeyExist(matID))
-                            node.SetMaterialIDBit(matID, index);
-                        else
-                            node.CreateNewMaterialBitArray(matID, index, numFaces);
+                        UpdateNode(node, matID, index, numFaces);
+                    }
+                    //So it's a parentNode, but we don't want to update delete material IDs so check if that's not true
+                    else if (!parentNode.IsMatIDDeleted(matID))
+                    {
+                        UpdateNode(node, matID, index, numFaces);
                     }
                 }
             }
             else
             {
                 var numFaces = polyMesh.FNum;
+                var parentNode = node as ParentNode;
 
                 //Build FaceID Dictionary.
                 for (int index = 0; index < numFaces; index++)
@@ -140,16 +145,24 @@ namespace ExplodeScript
                     IMNFace face = polyMesh.F(index);
                     ushort matID = face.Material;
 
-                    //if the material ID has been deleted - don't add it
-                    if (!node.IsMatIDDeleted(matID))
+                    if (parentNode == null)
                     {
-                        if (node.DoesKeyExist(matID))
-                            node.SetMaterialIDBit(matID, index);
-                        else
-                            node.CreateNewMaterialBitArray(matID, index, numFaces);
+                        UpdateNode(node, matID, index, numFaces);
+                    }
+                    else if (!parentNode.IsMatIDDeleted(matID))
+                    {
+                        UpdateNode(node, matID, index, numFaces);
                     }
                 }
             }
+        }
+
+        private static void UpdateNode(BaseNode node, ushort matID, int index, int numFaces)
+        {
+            if (node.DoesKeyExist(matID))
+                node.SetMaterialIDBit(matID, index);
+            else
+                node.CreateNewMaterialBitArray(matID, index, numFaces);
         }
 
 

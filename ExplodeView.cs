@@ -214,7 +214,7 @@ namespace Test_ExplodeScript
         {
             m_Controller.AddHPObject();
             //Todo don't call populateTreeview if nothing was added.
-            m_Controller.PopulateTreeview();
+            //m_Controller.PopulateTreeview();
         }
 
         void explodeButton_MouseUp(object sender, MouseEventArgs e)

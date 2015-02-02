@@ -271,19 +271,6 @@ namespace Test_ExplodeScript
             else
                 iface.SelectNode(node, true);
 
-            //if (!treeNode.isChild)
-            //{
-            //    if (m_RealParentNodeDictionary[selectedHandle].IsPlaceHolder(matID))
-            //    {
-            //        iface.CommandPanelTaskMode = TASK_MODE_MODIFY;
-            //        IObject baseObjectRef = node.ObjectRef.FindBaseObject();
-            //        m_Global.COREInterface7.SetCurEditObject(baseObjectRef, null);
-            //        iface.SetSubObjectLevel(4, true);
-
-
-            //    }
-            //}
-
             iface.CommandPanelTaskMode = TASK_MODE_MODIFY;
             IObject baseObjectRef = node.ObjectRef.FindBaseObject();
             m_Global.COREInterface7.SetCurEditObject(baseObjectRef, null);
@@ -348,7 +335,7 @@ namespace Test_ExplodeScript
         }
 
 
-        private GlobalDelegates.Delegate4 m_SceneResetHandler;
+        private GlobalDelegates.Delegate5 m_SceneResetHandler;
         private uint m_NodeEventID;
 
         void Global_SceneReset(IntPtr obj, IntPtr info)
@@ -517,13 +504,27 @@ namespace Test_ExplodeScript
                 {
                     //We don't replace the entire node with parentNode because in that case he would lose his children
                     //We do need to clear the deleted material ID set
-                    var ids = m_RealParentNodeDictionary[nodeHandle].UpdateMaterialBitArray(parentNode);
-                    
-                    if (ids.Any())
+                    var addedIds = m_RealParentNodeDictionary[nodeHandle].UpdateMaterialBitArray(parentNode);
+                    string ids = string.Empty;
+
+                    if (addedIds.Any())
                     {
                         m_RealParentNodeDictionary[nodeHandle].ClearDeletedMaterialIDs();
-                        nodeAddedInformation = "Materials IDs added: " + ids;
-                        succes = true;
+
+                        foreach (ushort id in addedIds)
+                        {
+                            //Add will add new Nodes
+                            m_TreeviewManager.AddNode(m_RealParentNodeDictionary[nodeHandle], id);
+                            //Update will update existing nodes, such as Placeholder nodes
+                            m_TreeviewManager.UpdateNode(m_RealParentNodeDictionary[nodeHandle], id);
+
+                            //Update the delete panels
+                            m_TreeviewManager.UpdateDeletePanels();
+
+                            ids += id + 1 + ", ";
+                        }
+
+                        nodeAddedInformation = "Materials IDs added: " + ids.Remove(ids.Length - 2);
                     }
                     else
                     {
@@ -596,6 +597,13 @@ namespace Test_ExplodeScript
                        {
                            childNode.ParentHandle = lpHandle;
                            var result = m_RealParentNodeDictionary[lpHandle].SetChild(hpID, childNode);
+                           //if the result is positive we need to add this childNode to the respective lpTreeViewNode
+                           if (result)
+                           {
+                               ParentNode parentNode = m_RealParentNodeDictionary[lpHandle];
+                               m_TreeviewManager.AddChildNode(parentNode, hpNodeHandle, hpID);
+                               m_TreeviewManager.UpdateDeletePanels();
+                           }
                        } 
                     }
                     //if (result)
@@ -608,8 +616,13 @@ namespace Test_ExplodeScript
                     var placeHolderIDs = usedHpIDs.Except(usedLpIDs);
                     foreach (ushort hpID in placeHolderIDs)
                     {
-                        m_RealParentNodeDictionary[lpHandle].SetPlaceHolderID(hpID);
-                        m_RealParentNodeDictionary[lpHandle].SetChild(hpID, childNode);
+                        ParentNode parentNode = m_RealParentNodeDictionary[lpHandle];
+
+                        parentNode.SetPlaceHolderID(hpID);
+                        parentNode.SetChild(hpID, childNode);
+
+                        m_TreeviewManager.AddNode(parentNode, hpID);
+                        m_TreeviewManager.UpdateDeletePanels();
                     }
                 }
             }
@@ -618,9 +631,12 @@ namespace Test_ExplodeScript
 
         public void UpdateMaterialIDChange(uint handle)
         {
+            var updateTreeView = false;
             //LP
             if (m_RealParentNodeDictionary.ContainsKey(handle))
             {
+                var handleList = new List<uint> {handle};
+
                 //Get the parentNode at handle
                 var parentNode = m_RealParentNodeDictionary[handle];
 
@@ -636,6 +652,21 @@ namespace Test_ExplodeScript
                 //IDs that should be added
                 var addIDs = afterIDChange.Except(beforeIDChange);
 
+                foreach (ushort deleteID in deleteIDs)
+                {
+                    //We need to delete the children of this node
+                    var childNodeHandles = parentNode.GetChildHandles(deleteID);
+                    foreach (uint childNodeHandle in childNodeHandles)
+                    {
+                        parentNode.DeleteChild(childNodeHandle, deleteID);
+                    }
+
+                    handleList.AddRange(childNodeHandles);
+
+                    //remove this material ID from the parentNode. But do NOT add it to the 'deleted IDs' list
+                    parentNode.RemoveMaterialID(deleteID, false);
+                }
+                
                 //Get all the deleted nodes
                 var alreadyDeletedIDs = parentNode.GetDeletedMaterialIDsArray();
                 
@@ -646,7 +677,7 @@ namespace Test_ExplodeScript
                     m_RealParentNodeDictionary.Remove(handle);
                 }
 
-                UpdateTreeView(handle, deleteIDs, addIDs);
+                UpdateTreeView(handleList, deleteIDs, addIDs);
             }
             else //HP - the difficult part
             {
@@ -697,25 +728,30 @@ namespace Test_ExplodeScript
                                 {
                                     m_RealParentNodeDictionary[parentNode.Handle].RemovePlaceholderNode(deleteID);
                                 }
+
+                                m_TreeviewManager.DeleteNode(parentNode.Handle, deleteID);
+
+                                updateTreeView = true;
                             }
 
                             //now either add a new placeholder or set it as a child to an already existing node
                             var matchIDs = newIDs.Intersect(usedLpIDs);
+         
                             if (matchIDs.Any())
                             {
                                 foreach (ushort matchID in matchIDs)
                                 {
-                                    parentNode.SetChild(matchID, uniqueChildNode);
+                                    parentNode.SetChild(matchID, uniqueChildNode); 
+                                    updateTreeView = true;
                                 }
-                                
                             }
                             else
                             {
                                 foreach (ushort newID in newIDs)
                                 {
-                                    //do we need a new parentNode? Or can we just mark this ID as placeholder! this is what we should do
                                     parentNode.SetPlaceHolderID(newID);
-                                    parentNode.SetChild(newID, uniqueChildNode);
+                                    parentNode.SetChild(newID, uniqueChildNode); 
+                                    updateTreeView = true;
                                 }
                             }
                         }
@@ -723,7 +759,8 @@ namespace Test_ExplodeScript
                 }
 
                 //Need better one, but for now this will do
-                PopulateTreeview();
+                if (updateTreeView)
+                    PopulateTreeview();
             }
         }
 
@@ -755,6 +792,7 @@ namespace Test_ExplodeScript
                     }
 
                     var idUsed = m_RealParentNodeDictionary[lpHandle].GetUsedMaterialIDsArray();
+                    
                     foreach (ushort lpID in idUsed)
                     {
                         //now restore our parenting... just copy from above
@@ -763,7 +801,7 @@ namespace Test_ExplodeScript
 
                         //Get all used HP IDs
                         var usedHpIDs = childNode.GetUsedMaterialIDsArray();
-
+                        
                         //Check if they match
                         foreach (var hpID in usedHpIDs)
                         {
@@ -785,8 +823,12 @@ namespace Test_ExplodeScript
                 uint lpHandle = panelClickedNode.uHandle;
                 ushort id = panelClickedNode.matID;
 
+                //Delete it from our TreeViewManager
+                m_TreeviewManager.DeleteParentNode(m_RealParentNodeDictionary[lpHandle], panelClickedNode);
+
                 //Delete the node in our dictionary
-                m_RealParentNodeDictionary[lpHandle].DeleteMaterialID(id);
+                m_RealParentNodeDictionary[lpHandle].RemoveMaterialID(id);
+
                 //I think we need to delete all the child nodes too
                 var hpHandles = m_RealParentNodeDictionary[lpHandle].GetChildHandles(id);
                 foreach (uint hpHandle in hpHandles)
@@ -797,10 +839,6 @@ namespace Test_ExplodeScript
                 //If there are no keys left in this dictionary just delete the main dictionary handle too
                 if (m_RealParentNodeDictionary[lpHandle].GetMaterialIDCount() == 0)
                     m_RealParentNodeDictionary.Remove(lpHandle);
-
-                //Delete it from our TreeViewManager
-                //m_TreeviewManager.TreeView.Nodes.Remove(panelClickedNode);
-                m_TreeviewManager.DeleteNode(panelClickedNode);
             }
             else
             {
@@ -808,32 +846,32 @@ namespace Test_ExplodeScript
                 ushort id = panelClickedNode.matID;
                 uint hpHandle = panelClickedNode.uHandle; //clicked node handle
 
+                //Delete HP node from our TreeViewManager
+                m_TreeviewManager.DeleteChildNode(panelClickedNode);
+
                 //Delete the node in our dictionary
                 m_RealParentNodeDictionary[lpHandle].DeleteChild(hpHandle, id);
-                
-                //We don't have a manager yet for childNodes :D
-                m_TreeviewManager.TreeView.Nodes.Remove(panelClickedNode);
             }
 
             m_TreeviewManager.UpdateDeletePanels();
         }
 
 
-        public void UpdateTreeView(uint handle, IEnumerable<ushort> deleteIDs, IEnumerable<ushort> addIDs)
+        private void UpdateTreeView(List<uint> handles, IEnumerable<ushort> deleteIDs, IEnumerable<ushort> addIDs)
         {
             var treeview = m_TreeviewManager.TreeView;
             treeview.BeginUpdate();
 
             foreach (ushort deleteID in deleteIDs)
             {
-                m_TreeviewManager.DeleteNode(handle, deleteID);
+                m_TreeviewManager.DeleteNodes(handles, deleteID);
                 DebugMethods.Log(String.Format("Deleting matID: {0}", deleteID + 1));
             }
 
             foreach (ushort addID in addIDs)
             {
-                var lpNode = new TreeNodeEx(handle, addID, String.Format("{0} - MatID: {1}",
-                                            m_RealParentNodeDictionary[handle].Name, addID + 1), false);
+                var lpNode = new TreeNodeEx(handles[0], addID, String.Format("{0} - MatID: {1}",
+                                            m_RealParentNodeDictionary[handles[0]].Name, addID + 1), false);
 
                 m_TreeviewManager.AddNodes(lpNode);
 
@@ -843,6 +881,7 @@ namespace Test_ExplodeScript
             treeview.EndUpdate();
             m_TreeviewManager.UpdateDeletePanels();
         }
+        
 
         /// <summary>
         /// Completely redraws the treeview - use when we changed all our nodes
@@ -1004,26 +1043,22 @@ namespace Test_ExplodeScript
 
                 var matIDArray = parentNode.GetUsedMaterialIDsArray();
 
-                foreach (ushort matID in matIDArray)
+                //We havea  method now to get the unique childHandles
+
+                foreach (var uniqueChildNode in parentNode.GetUniqueChildNodes())
                 {
-                    var usedHpHandles = parentNode.GetChildHandles(matID);
-                    foreach (uint hpHandle in usedHpHandles)
-                    {
-                        if (tempUniqueHpHandles.Add(hpHandle))
-                            tempUniqueChildNodes.Add(parentNode.GetChild(matID, hpHandle));
-                    }
+                    //if the object has modifiers we need to set the baseobject again so it gets re-cached. 
+                    var derivedObjectChild = uniqueChildNode.INode.ObjectRef as IIDerivedObject;
+                    if (derivedObjectChild != null) derivedObjectChild.ReferenceObject(uniqueChildNode.INode.ObjectRef.FindBaseObject());
+
+                    uniqueChildNode.InvalidateMesh();
                 }
-
-            }
-            foreach (var uniqueChildNode in tempUniqueChildNodes)
-            {
-                //if the object has modifiers we need to set the baseobject again so it gets re-cached. 
-                var derivedObject = uniqueChildNode.INode.ObjectRef as IIDerivedObject;
-                if (derivedObject != null) derivedObject.ReferenceObject(uniqueChildNode.INode.ObjectRef.FindBaseObject());
-
-                uniqueChildNode.InvalidateMesh();
             }
 
+            //This will re-draw everything for sure
+            IINode node = iface.GetINodeByHandle(lpHandleArray[0]);
+            iface.DeSelectNode(node);
+            iface.SelectNode(node, true);
 
             explodeStopwatch.Stop();
             DebugMethods.Log(String.Format("Time took to explode mesh: {0}ms", explodeStopwatch.ElapsedMilliseconds));

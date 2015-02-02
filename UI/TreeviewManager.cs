@@ -237,14 +237,109 @@ namespace ExplodeScript.UI
                 //Add the lpNode to the m_NodeDictionary
                 m_NodeDictionary.Add(new Tuple<uint, ushort>(lpNode.uHandle, lpNode.matID), lpNode);
 
-                //Add all the possible children too
-                foreach (TreeNodeEx node in lpNode.Nodes)
-                {
-                    m_NodeDictionary.Add(new Tuple<uint, ushort>(node.uHandle, node.matID), lpNode);
-                }
-
                 //Finally add the the node to the TreeView
                 TreeView.Nodes.Add(lpNode);
+            }
+        }
+        
+
+        public void AddNode(ParentNode parentNode, ushort matID)
+        {
+            if (!m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(parentNode.Handle, matID)))
+            {
+                TreeNodeEx treeLPNode;
+                if (parentNode.IsPlaceHolder(matID)) //we can't use parentNode.name because it's a node property, not a materialID one
+                {
+                    treeLPNode = new TreeNodeEx(parentNode.Handle, matID, String.Format("{0} - MatID: {1}", "Missing LP", matID + 1), false)
+                    {
+                        ForeColor = Color.FromArgb(235, 63, 63)
+                    };
+                }
+                else
+                {
+                    treeLPNode = new TreeNodeEx(parentNode.Handle, matID, String.Format("{0} - MatID: {1}", parentNode.Name, matID + 1), false);
+                }
+
+                m_NodeDictionary.Add(new Tuple<uint, ushort>(parentNode.Handle, matID), treeLPNode);
+
+                //Get all children of parentNode
+                var childHandles = parentNode.GetChildHandles(matID);
+                foreach (uint childHandle in childHandles)
+                {
+                    //Get ChildNode at matId and handle
+                    var childNode = parentNode.GetChild(matID, childHandle);
+
+                    //Create TreeNode
+                    var treeHPNode = new TreeNodeEx(childNode.Handle, matID, childNode.Name, true)
+                    {
+                        ParentHandle = parentNode.Handle
+                    };
+
+                    //Add HP node to the nodeDictionary
+                    m_NodeDictionary.Add(new Tuple<uint, ushort>(childNode.Handle, matID), treeHPNode);
+
+                    //Add hp node to lp Node
+                    treeLPNode.Nodes.Add(treeHPNode);
+                }
+
+                //Add the LP node to the tree
+                TreeView.Nodes.Add(treeLPNode);
+            }
+        }
+
+        public void UpdateNode(ParentNode parentNode, ushort matID)
+        {
+            if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(parentNode.Handle, matID)))
+            {
+                //Get the treeNode to update:
+                var lpTreeNode = m_NodeDictionary[new Tuple<uint, ushort>(parentNode.Handle, matID)];
+                //Default back to white if the parentNode is no longer a PlaceHolder node. 
+                if (!parentNode.IsPlaceHolder(matID))
+                    lpTreeNode.ForeColor = Color.FromArgb(220, 220, 220);
+
+                //Update the values
+                lpTreeNode.Text = String.Format("{0} - MatID: {1}", parentNode.Name, matID + 1);
+                lpTreeNode.uHandle = parentNode.Handle;
+                lpTreeNode.matID = matID;
+
+                //Get all children of parentNode
+                var childHandles = parentNode.GetChildHandles(matID);
+                foreach (uint childHandle in childHandles)
+                {
+                    //Get ChildNode at matId and handle
+                    var childNode = parentNode.GetChild(matID, childHandle);
+
+                    var hpTreeNode = m_NodeDictionary[new Tuple<uint, ushort>(childNode.Handle, matID)];
+                    hpTreeNode.Name = childNode.Name;
+                    hpTreeNode.uHandle = childNode.Handle;
+                    hpTreeNode.matID = matID;
+                    hpTreeNode.ParentHandle = parentNode.Handle;
+                }
+            }
+        }
+
+        public void AddChildNode(ParentNode parentNode, uint hpHandle, ushort id)
+        {
+            //Check if the lpNode already exists - otherwise we're trying to add a childNode to a non-existing parentNode
+            if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(parentNode.Handle, id)))
+            {
+                //Get LP TreeNode
+                var treeLPNode = m_NodeDictionary[new Tuple<uint, ushort>(parentNode.Handle, id)];
+
+                //Get childNode
+                var childNode = parentNode.GetChild(id, hpHandle);
+
+                //Create new HP treeNode
+                var treeHPNode = new TreeNodeEx(childNode.Handle, id, childNode.Name, true)
+                {
+                    ParentHandle = parentNode.Handle
+                };
+
+                //Add the newly made HP treeNode to the m_NodeDictionary
+                m_NodeDictionary.Add(new Tuple<uint, ushort>(hpHandle, id), treeHPNode);
+
+                //Add the hpTreeNode to the LPNode
+                treeLPNode.Nodes.Add(treeHPNode);
             }
         }
 
@@ -252,23 +347,41 @@ namespace ExplodeScript.UI
         /// <summary>
         /// Deletes node from Treeview and internal m_NodeDictionary (keeps a list of all nodes Tuple uint, ushort)
         /// </summary>
-        public void DeleteNode(uint lpHandle, ushort lpID)
+        public void DeleteNode(uint handle, ushort id)
         {
             //If this key does not exist it means we've already deleted it, usually a second callback from EditablePoly
-            if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(lpHandle, lpID)))
+            if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(handle, id)))
             {
                 //Get treenode at given handle, mat id
-                var treeNode = m_NodeDictionary[new Tuple<uint, ushort>(lpHandle, lpID)];
+                var treeNode = m_NodeDictionary[new Tuple<uint, ushort>(handle, id)];
 
                 //Remove the treeNode
                 TreeView.Nodes.Remove(treeNode);
                 //Remove from Dictionary too
-                m_NodeDictionary.Remove(new Tuple<uint, ushort>(lpHandle, lpID));
+                m_NodeDictionary.Remove(new Tuple<uint, ushort>(handle, id));
+            }
+        }
+
+        public void DeleteNodes(List<uint> handles, ushort id)
+        {
+            //If this key does not exist it means we've already deleted it, usually a second callback from EditablePoly
+            foreach (uint handle in handles)
+            {
+                if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(handle, id)))
+                {
+                    //Get treenode at given handle, mat id
+                    var treeNode = m_NodeDictionary[new Tuple<uint, ushort>(handle, id)];
+
+                    //Remove the treeNode
+                    TreeView.Nodes.Remove(treeNode);
+                    //Remove from Dictionary too
+                    m_NodeDictionary.Remove(new Tuple<uint, ushort>(handle, id));
+                }
             }
         }
 
 
-        internal void DeleteNode(TreeNodeEx panelClickedNode)
+        internal void DeleteChildNode(TreeNodeEx panelClickedNode)
         {
             if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(panelClickedNode.uHandle, panelClickedNode.matID)))
             {
@@ -277,9 +390,36 @@ namespace ExplodeScript.UI
 
                 //Remove the treeNode
                 TreeView.Nodes.Remove(treeNode);
+
                 //Remove from Dictionary too
                 m_NodeDictionary.Remove(new Tuple<uint, ushort>(panelClickedNode.uHandle, panelClickedNode.matID));
             }
         }
+
+
+        internal void DeleteParentNode(ParentNode parentNode, TreeNodeEx panelClickedNode)
+        {
+            if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(panelClickedNode.uHandle, panelClickedNode.matID)))
+            {
+                //Get treenode at given handle, mat id
+                var treeNode = m_NodeDictionary[new Tuple<uint, ushort>(panelClickedNode.uHandle, panelClickedNode.matID)];
+
+                //Remove the treeNode
+                TreeView.Nodes.Remove(treeNode);
+
+                //Remove from Dictionary too
+                m_NodeDictionary.Remove(new Tuple<uint, ushort>(panelClickedNode.uHandle, panelClickedNode.matID));
+
+                //We need to remove all children from Dictionary too
+                //Get all children handles for this ID
+                var childHandles = parentNode.GetChildHandles(panelClickedNode.matID);
+                foreach (uint childHandle in childHandles)
+                {
+                    //Remove from Dictionary
+                    m_NodeDictionary.Remove(new Tuple<uint, ushort>(childHandle, panelClickedNode.matID));
+                }
+            }
+        }
+
     }
 }
