@@ -620,6 +620,10 @@ namespace Test_ExplodeScript
 
                         parentNode.SetPlaceHolderID(hpID);
                         parentNode.SetChild(hpID, childNode);
+                        //So we are adding a placeHolder Node for hpID. It could happen that hpID has been deleted before
+                        //and now just added again. So we should clear hpID from the deleted ID list! Otherwise this will cause problems
+                        //updating the node, because it will skip deleted IDs
+                        parentNode.RemoveFromDeleteList(hpID);
 
                         m_TreeviewManager.AddNode(parentNode, hpID);
                         m_TreeviewManager.UpdateDeletePanels();
@@ -646,11 +650,15 @@ namespace Test_ExplodeScript
                 ObjectMethods.UpdateFaceDictionary(parentNode);
                 //Get all the material IDs again, but after we've updated the node
                 var afterIDChange = parentNode.GetUsedMaterialIDsArray();
-                
+                //Get the placerHolderIDs
+                var placeHolderIDs = parentNode.GetPlaceholderIDs();
+                //Add them because otherwise we will delete them sometimes 
+                ushort[] totalIDs = afterIDChange.Concat(placeHolderIDs).ToArray();
+
                 //There are the IDs that should be getting removed from the treeview
-                var deleteIDs = beforeIDChange.Except(afterIDChange);
+                var deleteIDs = beforeIDChange.Except(totalIDs);
                 //IDs that should be added
-                var addIDs = afterIDChange.Except(beforeIDChange);
+                var addIDs = totalIDs.Except(beforeIDChange);
 
                 foreach (ushort deleteID in deleteIDs)
                 {
@@ -666,6 +674,31 @@ namespace Test_ExplodeScript
                     //remove this material ID from the parentNode. But do NOT add it to the 'deleted IDs' list
                     parentNode.RemoveMaterialID(deleteID, false);
                 }
+
+                //These are all the IDs that possibly need updating in our treeView 
+                //afterIDChange is used here because totalIDs includes the EXTRA placeholder IDs that could never not be a placeholder
+                var updateIDs = afterIDChange.Intersect(beforeIDChange);
+                foreach (ushort updateID in afterIDChange)
+                {
+                    //These are all the nodes that are possibly no longer Placeholder nodes
+                    //We can check this by going over all placeHolders in this list, and checking if they have a HP counterpart
+                    if (m_RealParentNodeDictionary[handle].IsPlaceHolder(updateID))
+                    {
+                        //Get the handles of the children on this ID, if there are none it will return an empty array
+                        var childHandles = m_RealParentNodeDictionary[handle].GetChildHandles(updateID);
+
+                        if (childHandles.Any())
+                        {
+                            //Change this methods name!!! TODO
+                            m_RealParentNodeDictionary[handle].SetPlacerHolderID(updateID, false);
+                            m_TreeviewManager.UpdateNode(parentNode, updateID);
+                        }
+                    }
+
+                    
+                    //m_RealParentNodeDictionary[handle].UpdatePlaceHolderNodes(parentNode);
+                }
+                
                 
                 //Get all the deleted nodes
                 var alreadyDeletedIDs = parentNode.GetDeletedMaterialIDsArray();
@@ -873,7 +906,7 @@ namespace Test_ExplodeScript
                 var lpNode = new TreeNodeEx(handles[0], addID, String.Format("{0} - MatID: {1}",
                                             m_RealParentNodeDictionary[handles[0]].Name, addID + 1), false);
 
-                m_TreeviewManager.AddNodes(lpNode);
+                m_TreeviewManager.AddNode(lpNode);
 
                 DebugMethods.Log(String.Format("Adding matID: {0}", addID + 1));
             }
@@ -930,7 +963,7 @@ namespace Test_ExplodeScript
                         }
                     }
 
-                    m_TreeviewManager.AddNodes(lpNode);
+                    m_TreeviewManager.AddNode(lpNode);
                 }
             }
 

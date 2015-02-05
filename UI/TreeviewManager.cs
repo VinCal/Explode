@@ -229,7 +229,7 @@ namespace ExplodeScript.UI
         /// Adds nodes to the treeview and also the internal m_NodeDictionary (keeps a list of all nodes Tuple uint, ushort)
         /// </summary>
         /// <param name="lpNode"></param>
-        public void AddNodes(TreeNodeEx lpNode)
+        public void AddNode(TreeNodeEx lpNode)
         {
             //Only add if it hasn't been added already
             if (!m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(lpNode.uHandle, lpNode.matID)))
@@ -237,8 +237,9 @@ namespace ExplodeScript.UI
                 //Add the lpNode to the m_NodeDictionary
                 m_NodeDictionary.Add(new Tuple<uint, ushort>(lpNode.uHandle, lpNode.matID), lpNode);
 
+                InsertParentNode(lpNode);
                 //Finally add the the node to the TreeView
-                TreeView.Nodes.Add(lpNode);
+                //TreeView.Nodes.Add(lpNode);
             }
         }
         
@@ -282,8 +283,36 @@ namespace ExplodeScript.UI
                     treeLPNode.Nodes.Add(treeHPNode);
                 }
 
-                //Add the LP node to the tree
-                TreeView.Nodes.Add(treeLPNode);
+                InsertParentNode(treeLPNode);
+
+                ////this is where we need to sort on ID, so we INSERT the LP node at the correct place
+                //int insertIndex = -1;
+
+                //for (int index = 0; index < TreeView.Nodes.Count - 1; index++)
+                //{
+                //    var lpNodes0 = TreeView.Nodes[index] as TreeNodeEx;
+                //    var lpNodes1 = TreeView.Nodes[index + 1] as TreeNodeEx;
+
+                //    //This means the current material ID is smaller than the first one in the list, so we can add it first, no need to look further
+                //    if (matID < lpNodes0.matID)
+                //    {
+                //        insertIndex = index;
+                //        break;
+                //    }
+
+                //    //Somewhere in between the nodes
+                //    if (matID > lpNodes0.matID && matID < lpNodes1.matID)
+                //    {
+                //        insertIndex = index + 1;
+                //    }
+                //}
+                ////At the end of the list
+                //if (insertIndex == -1)
+                //    insertIndex = TreeView.Nodes.Count;
+
+                ////Add the LP node to the tree
+                //TreeView.Nodes.Insert(insertIndex, treeLPNode);
+                ////TreeView.Nodes.Add(treeLPNode);
             }
         }
 
@@ -295,10 +324,18 @@ namespace ExplodeScript.UI
                 var lpTreeNode = m_NodeDictionary[new Tuple<uint, ushort>(parentNode.Handle, matID)];
                 //Default back to white if the parentNode is no longer a PlaceHolder node. 
                 if (!parentNode.IsPlaceHolder(matID))
+                {
+                    lpTreeNode.Text = String.Format("{0} - MatID: {1}", parentNode.Name, matID + 1);
                     lpTreeNode.ForeColor = Color.FromArgb(220, 220, 220);
+                }
+                else
+                {
+                    lpTreeNode.Text = String.Format("{0} - MatID: {1}", "Missing LP", matID + 1);
+                    lpTreeNode.ForeColor = Color.FromArgb(235, 63, 63);
+                }
 
                 //Update the values
-                lpTreeNode.Text = String.Format("{0} - MatID: {1}", parentNode.Name, matID + 1);
+                
                 lpTreeNode.uHandle = parentNode.Handle;
                 lpTreeNode.matID = matID;
 
@@ -337,6 +374,9 @@ namespace ExplodeScript.UI
 
                 //Add the newly made HP treeNode to the m_NodeDictionary
                 m_NodeDictionary.Add(new Tuple<uint, ushort>(hpHandle, id), treeHPNode);
+
+                //We should sort it here, so that the list is sorted all the way through even when adding new nodes and WHAT NOT
+                //TreeView.Nodes.Insert()
 
                 //Add the hpTreeNode to the LPNode
                 treeLPNode.Nodes.Add(treeHPNode);
@@ -419,6 +459,37 @@ namespace ExplodeScript.UI
                     m_NodeDictionary.Remove(new Tuple<uint, ushort>(childHandle, panelClickedNode.matID));
                 }
             }
+        }
+
+        private void InsertParentNode(TreeNodeEx node)
+        {
+            //this is where we need to sort on ID, so we INSERT the LP node at the correct place
+            int insertIndex = -1;
+
+            for (int index = 0; index < TreeView.Nodes.Count - 1; index++)
+            {
+                var lpNodes0 = TreeView.Nodes[index] as TreeNodeEx;
+                var lpNodes1 = TreeView.Nodes[index + 1] as TreeNodeEx;
+
+                //This means the current material ID is smaller than the first one in the list, so we can add it first, no need to look further
+                if (node.matID < lpNodes0.matID)
+                {
+                    insertIndex = index;
+                    break;
+                }
+
+                //Somewhere in between the nodes
+                if (node.matID > lpNodes0.matID && node.matID < lpNodes1.matID)
+                {
+                    insertIndex = index + 1;
+                }
+            }
+            //At the end of the list
+            if (insertIndex == -1)
+                insertIndex = TreeView.Nodes.Count;
+
+            //Add the LP node to the tree
+            TreeView.Nodes.Insert(insertIndex, node);
         }
 
     }

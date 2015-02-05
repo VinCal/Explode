@@ -157,6 +157,7 @@ namespace Test_ExplodeScript
         }
 
         
+        //This method is a bit weird here, why is it here? Why is this the only real logic method in this class? We should move it oout of here it's confusing
         /// <summary>
         /// Updates the Material Bit Array with the data of newParentNode
         /// </summary>
@@ -189,12 +190,18 @@ namespace Test_ExplodeScript
                     addedIDslist.Add(beAddedID);
                 }
 
-                
-                //Now we check for placeholder nodes - they have children so we need to add them again too 
+                //I don't know why we ever had this? Maybe we can come back to it but if we do need it test this:
+                //Add LP, Add HP -> Result: Missing LP Mat ID: 2. Add LP again: Mat ID 2 added, crash when clicking on it.
+
+                //If the node has placeholder IDs we need to check if they exist in our newIDs list, if so we need to replace them with
+                //real nodes. and copy everything over and stuff
                 var placeHolderIDs = GetPlaceholderIDs();
 
+                //Get the placeHolder nodes that we now have info about again (newIDs)
+                var placeHolderToRealNodeList = placeHolderIDs.Intersect(newIDs);
+                
                 var tempChildNodeList = new List<ChildNode>();
-                foreach (ushort placeHolderID in placeHolderIDs)
+                foreach (ushort placeHolderID in placeHolderToRealNodeList)
                 {
                     //Get the all the children of the placeholder
                     var childHandles = GetChildHandles(placeHolderID);
@@ -205,8 +212,6 @@ namespace Test_ExplodeScript
 
                     //Remove the placeHolder
                     RemovePlaceholderNode(placeHolderID);
-                    //Give this node the correct name, instead of 'Missing LP'
-                    this.Name = newParentNode.Name;
 
                     SetMaterialBitArray(placeHolderID, newParentNode.GetMaterialBitArray(placeHolderID));
                     foreach (ChildNode childNode in tempChildNodeList)
@@ -276,6 +281,11 @@ namespace Test_ExplodeScript
             }
         }
 
+        public void SetPlacerHolderID(ushort matID, bool value)
+        {
+            m_ElementParentNodeDictionary[matID].Placeholder = value;
+        }
+
         /// <summary>
         /// Returns if the node at matID is a placeholder node
         /// </summary>
@@ -309,7 +319,7 @@ namespace Test_ExplodeScript
             }
         }
 
-        private HashSet<ushort> GetPlaceholderIDs()
+        public ushort[] GetPlaceholderIDs()
         {
             var tempSet = new HashSet<ushort>();
 
@@ -319,10 +329,11 @@ namespace Test_ExplodeScript
                 tempSet.Add(matID);
             }
 
-            return tempSet;
+            ushort[] returnArray = new ushort[tempSet.Count];
+            tempSet.CopyTo(returnArray);
+
+            return returnArray;
         }
-
-
 
 
         /// <summary>
@@ -331,7 +342,7 @@ namespace Test_ExplodeScript
         /// <param name="matID"></param>
         public void RemoveMaterialID(ushort matID, bool delete = true)
         {
-            if (m_ElementParentNodeDictionary.ContainsKey(matID))//m_ElementNodeDictionary
+            if (m_ElementParentNodeDictionary.ContainsKey(matID) || m_ElementNodeDictionary.ContainsKey(matID))//m_ElementNodeDictionary
             {
                 m_ElementParentNodeDictionary.Remove(matID);
                 m_ElementNodeDictionary.Remove(matID);
@@ -364,6 +375,14 @@ namespace Test_ExplodeScript
         public void ClearDeletedMaterialIDs()
         {
             m_DeletedMaterialIDs.Clear();
+        }
+
+        /// <summary>
+        /// Removes specified ID from m_DeletedMaterialID list. 
+        /// </summary>
+        public void RemoveFromDeleteList(ushort matID)
+        {
+            m_DeletedMaterialIDs.Remove(matID);
         }
 
         /// <summary>
