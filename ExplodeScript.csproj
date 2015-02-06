@@ -123,19 +123,15 @@
   <ItemGroup>
     <Reference Include="Autodesk.Max, Version=17.2.259.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files\Autodesk\3ds Max 2015\Autodesk.Max.dll</HintPath>
-    </Reference>
-    <Reference Include="CSharpUtilities, Version=17.2.259.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files\Autodesk\3ds Max 2015\CSharpUtilities.dll</HintPath>
+      <HintPath>C:\Program Files\Autodesk\3ds Max 2012\Autodesk.Max.dll</HintPath>
     </Reference>
     <Reference Include="ManagedServices, Version=0.0.0.0, Culture=neutral, processorArchitecture=AMD64">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files\Autodesk\3ds Max 2015\ManagedServices.dll</HintPath>
+      <HintPath>C:\Program Files\Autodesk\3ds Max 2012\ManagedServices.dll</HintPath>
     </Reference>
     <Reference Include="MaxCustomControls, Version=17.2.259.0, Culture=neutral, processorArchitecture=AMD64">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files\Autodesk\3ds Max 2015\MaxCustomControls.dll</HintPath>
+      <HintPath>C:\Program Files\Autodesk\3ds Max 2012\MaxCustomControls.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.QualityTools.Testing.Fakes, Version=11.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="PresentationCore" />
@@ -148,10 +144,6 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
-    <Reference Include="UiViewModels, Version=17.2.259.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files\Autodesk\3ds Max 2015\UiViewModels.dll</HintPath>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Controller.cs" />

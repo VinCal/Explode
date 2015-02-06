@@ -281,9 +281,12 @@ namespace Test_ExplodeScript
             }
         }
 
-        public void SetPlacerHolderID(ushort matID, bool value)
+        public void UpdatePlaceHolderID(ushort matID, bool value)
         {
-            m_ElementParentNodeDictionary[matID].Placeholder = value;
+            if (m_ElementParentNodeDictionary.ContainsKey(matID))
+                m_ElementParentNodeDictionary[matID].Placeholder = value;
+            else
+                throw new Exception("UpdatePlaceholderID called but there is no node in m_ElementParentNodeDictionary at the key!");
         }
 
         /// <summary>

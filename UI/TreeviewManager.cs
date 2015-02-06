@@ -26,7 +26,25 @@ namespace ExplodeScript.UI
         }
     }
 
-    public sealed class TreeviewManager : Panel
+    //http://stackoverflow.com/questions/10362988/treeview-flickering
+    public class TreeViewEx : TreeView
+    {
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            SendMessage(this.Handle, TVM_SETEXTENDEDSTYLE, (IntPtr) TVS_EX_DOUBLEBUFFER, (IntPtr) TVS_EX_DOUBLEBUFFER);
+            base.OnHandleCreated(e);
+        }
+
+        // Pinvoke:
+        private const int TVM_SETEXTENDEDSTYLE = 0x1100 + 44;
+        private const int TVM_GETEXTENDEDSTYLE = 0x1100 + 45;
+        private const int TVS_EX_DOUBLEBUFFER = 0x0004;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wp, IntPtr lp);
+    }
+
+    public class TreeviewManager : Panel
     {
         [DllImport("user32.dll")]
         public static extern int SendMessage(IntPtr hWnd, Int32 wMsg, bool wParam, Int32 lParam);
@@ -40,7 +58,7 @@ namespace ExplodeScript.UI
 
         //keeps track of all nodes in TreeView for easy look up by handle / ID
         private Dictionary<Tuple<uint, ushort>, TreeNodeEx> m_NodeDictionary;
-        
+
         public TreeView TreeView { get; set; }
         public Controller Controller { private get; set; }
 
@@ -60,7 +78,7 @@ namespace ExplodeScript.UI
                 FullRowSelect = true,
                 ShowLines = false,
                 BorderStyle = BorderStyle.None,
-                HideSelection = false
+                HideSelection = false,
             };
             TreeView.NodeMouseClick += treeview_NodeMouseClick;
             TreeView.AfterCollapse += TreeView_AfterCollapse;
@@ -229,7 +247,7 @@ namespace ExplodeScript.UI
         /// Adds nodes to the treeview and also the internal m_NodeDictionary (keeps a list of all nodes Tuple uint, ushort)
         /// </summary>
         /// <param name="lpNode"></param>
-        public void AddNode(TreeNodeEx lpNode)
+        public void AddNode(TreeNodeEx lpNode, bool selectAddedNode = true)
         {
             //Only add if it hasn't been added already
             if (!m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(lpNode.uHandle, lpNode.matID)))
@@ -238,13 +256,14 @@ namespace ExplodeScript.UI
                 m_NodeDictionary.Add(new Tuple<uint, ushort>(lpNode.uHandle, lpNode.matID), lpNode);
 
                 InsertParentNode(lpNode);
-                //Finally add the the node to the TreeView
-                //TreeView.Nodes.Add(lpNode);
+
+                if (selectAddedNode)
+                    TreeView.SelectedNode = lpNode;
             }
         }
         
 
-        public void AddNode(ParentNode parentNode, ushort matID)
+        public void AddNode(ParentNode parentNode, ushort matID, bool selectChild = false, bool selectAddedNode = true)
         {
             if (!m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(parentNode.Handle, matID)))
             {
@@ -265,13 +284,14 @@ namespace ExplodeScript.UI
 
                 //Get all children of parentNode
                 var childHandles = parentNode.GetChildHandles(matID);
+                TreeNodeEx treeHPNode = null;
                 foreach (uint childHandle in childHandles)
                 {
                     //Get ChildNode at matId and handle
                     var childNode = parentNode.GetChild(matID, childHandle);
 
                     //Create TreeNode
-                    var treeHPNode = new TreeNodeEx(childNode.Handle, matID, childNode.Name, true)
+                    treeHPNode = new TreeNodeEx(childNode.Handle, matID, childNode.Name, true)
                     {
                         ParentHandle = parentNode.Handle
                     };
@@ -284,39 +304,16 @@ namespace ExplodeScript.UI
                 }
 
                 InsertParentNode(treeLPNode);
-
-                ////this is where we need to sort on ID, so we INSERT the LP node at the correct place
-                //int insertIndex = -1;
-
-                //for (int index = 0; index < TreeView.Nodes.Count - 1; index++)
-                //{
-                //    var lpNodes0 = TreeView.Nodes[index] as TreeNodeEx;
-                //    var lpNodes1 = TreeView.Nodes[index + 1] as TreeNodeEx;
-
-                //    //This means the current material ID is smaller than the first one in the list, so we can add it first, no need to look further
-                //    if (matID < lpNodes0.matID)
-                //    {
-                //        insertIndex = index;
-                //        break;
-                //    }
-
-                //    //Somewhere in between the nodes
-                //    if (matID > lpNodes0.matID && matID < lpNodes1.matID)
-                //    {
-                //        insertIndex = index + 1;
-                //    }
-                //}
-                ////At the end of the list
-                //if (insertIndex == -1)
-                //    insertIndex = TreeView.Nodes.Count;
-
-                ////Add the LP node to the tree
-                //TreeView.Nodes.Insert(insertIndex, treeLPNode);
-                ////TreeView.Nodes.Add(treeLPNode);
+                if (selectAddedNode)
+                    TreeView.SelectedNode = !selectChild ? treeLPNode : treeHPNode;
+            }
+            else
+            {
+                throw new Exception("The parentNode is already present, did you mean to call UpdateNode()?");
             }
         }
 
-        public void UpdateNode(ParentNode parentNode, ushort matID)
+        public void UpdateNode(ParentNode parentNode, ushort matID, bool selectChild = false)
         {
             if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(parentNode.Handle, matID)))
             {
@@ -341,21 +338,34 @@ namespace ExplodeScript.UI
 
                 //Get all children of parentNode
                 var childHandles = parentNode.GetChildHandles(matID);
+                TreeNodeEx treeHPNode = null;
                 foreach (uint childHandle in childHandles)
                 {
                     //Get ChildNode at matId and handle
                     var childNode = parentNode.GetChild(matID, childHandle);
 
-                    var hpTreeNode = m_NodeDictionary[new Tuple<uint, ushort>(childNode.Handle, matID)];
-                    hpTreeNode.Name = childNode.Name;
-                    hpTreeNode.uHandle = childNode.Handle;
-                    hpTreeNode.matID = matID;
-                    hpTreeNode.ParentHandle = parentNode.Handle;
+                    if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(childNode.Handle, matID)))
+                    {
+                        treeHPNode = m_NodeDictionary[new Tuple<uint, ushort>(childNode.Handle, matID)];
+                        treeHPNode.Name = childNode.Name;
+                        treeHPNode.uHandle = childNode.Handle;
+                        treeHPNode.matID = matID;
+                        treeHPNode.ParentHandle = parentNode.Handle;
+                    }
+                    else
+                    {
+                        //The child node doesn't exists, we need to create one
+                        treeHPNode = AddChildNode(parentNode, childNode.Handle, matID);
+                    }
                 }
+
+                TreeView.SelectedNode = !selectChild ? lpTreeNode : treeHPNode;
             }
+            else
+                throw new Exception("The node you tried to update was not present in the m_NodeDictionary, did you mean to call AddNode()?");
         }
 
-        public void AddChildNode(ParentNode parentNode, uint hpHandle, ushort id)
+        public TreeNodeEx AddChildNode(ParentNode parentNode, uint hpHandle, ushort id)
         {
             //Check if the lpNode already exists - otherwise we're trying to add a childNode to a non-existing parentNode
             if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(parentNode.Handle, id)))
@@ -375,12 +385,13 @@ namespace ExplodeScript.UI
                 //Add the newly made HP treeNode to the m_NodeDictionary
                 m_NodeDictionary.Add(new Tuple<uint, ushort>(hpHandle, id), treeHPNode);
 
-                //We should sort it here, so that the list is sorted all the way through even when adding new nodes and WHAT NOT
-                //TreeView.Nodes.Insert()
-
                 //Add the hpTreeNode to the LPNode
                 treeLPNode.Nodes.Add(treeHPNode);
+
+                return treeHPNode;
+
             }
+            return null;
         }
 
 
@@ -399,6 +410,26 @@ namespace ExplodeScript.UI
                 TreeView.Nodes.Remove(treeNode);
                 //Remove from Dictionary too
                 m_NodeDictionary.Remove(new Tuple<uint, ushort>(handle, id));
+            }
+        }
+
+        /// <summary>
+        /// Deletes node from treeview and internal m_nodeDictionary
+        /// </summary>
+        /// <param name="node"></param>
+        /// <param name="id"></param>
+        public void DeleteNode(BaseNode node, ushort id)
+        {
+            //If this key does not exist it means we've already deleted it, usually a second callback from EditablePoly
+            if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(node.Handle, id)))
+            {
+                //Get treenode at given handle, mat id
+                var treeNode = m_NodeDictionary[new Tuple<uint, ushort>(node.Handle, id)];
+
+                //Remove the treeNode
+                TreeView.Nodes.Remove(treeNode);
+                //Remove from Dictionary too
+                m_NodeDictionary.Remove(new Tuple<uint, ushort>(node.Handle, id));
             }
         }
 

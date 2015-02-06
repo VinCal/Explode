@@ -335,7 +335,7 @@ namespace Test_ExplodeScript
         }
 
 
-        private GlobalDelegates.Delegate5 m_SceneResetHandler;
+        private GlobalDelegates.Delegate4 m_SceneResetHandler;
         private uint m_NodeEventID;
 
         void Global_SceneReset(IntPtr obj, IntPtr info)
@@ -617,7 +617,7 @@ namespace Test_ExplodeScript
                     foreach (ushort hpID in placeHolderIDs)
                     {
                         ParentNode parentNode = m_RealParentNodeDictionary[lpHandle];
-
+                         
                         parentNode.SetPlaceHolderID(hpID);
                         parentNode.SetChild(hpID, childNode);
                         //So we are adding a placeHolder Node for hpID. It could happen that hpID has been deleted before
@@ -625,7 +625,7 @@ namespace Test_ExplodeScript
                         //updating the node, because it will skip deleted IDs
                         parentNode.RemoveFromDeleteList(hpID);
 
-                        m_TreeviewManager.AddNode(parentNode, hpID);
+                        m_TreeviewManager.AddNode(parentNode, hpID, false, false);
                         m_TreeviewManager.UpdateDeletePanels();
                     }
                 }
@@ -639,15 +639,17 @@ namespace Test_ExplodeScript
             //LP
             if (m_RealParentNodeDictionary.ContainsKey(handle))
             {
-                var handleList = new List<uint> {handle};
+                m_TreeviewManager.SuspendDrawing();
 
                 //Get the parentNode at handle
                 var parentNode = m_RealParentNodeDictionary[handle];
 
                 //Get all the material IDs before we update our node (this will NOT include deleted IDs)
                 var beforeIDChange = parentNode.GetUsedMaterialIDsArray();
+
                 //Update our node
                 ObjectMethods.UpdateFaceDictionary(parentNode);
+
                 //Get all the material IDs again, but after we've updated the node
                 var afterIDChange = parentNode.GetUsedMaterialIDsArray();
                 //Get the placerHolderIDs
@@ -655,29 +657,31 @@ namespace Test_ExplodeScript
                 //Add them because otherwise we will delete them sometimes 
                 ushort[] totalIDs = afterIDChange.Concat(placeHolderIDs).ToArray();
 
+
                 //There are the IDs that should be getting removed from the treeview
                 var deleteIDs = beforeIDChange.Except(totalIDs);
                 //IDs that should be added
                 var addIDs = totalIDs.Except(beforeIDChange);
 
+
                 foreach (ushort deleteID in deleteIDs)
                 {
-                    //We need to delete the children of this node
+                    //We only want to delete this node if it has no children, if it does have children we need to make it a placeHolder
                     var childNodeHandles = parentNode.GetChildHandles(deleteID);
-                    foreach (uint childNodeHandle in childNodeHandles)
+                    if (!childNodeHandles.Any())
                     {
-                        parentNode.DeleteChild(childNodeHandle, deleteID);
+                        parentNode.RemoveMaterialID(deleteID, false);
+                        m_TreeviewManager.DeleteNode(parentNode, deleteID);
                     }
-
-                    handleList.AddRange(childNodeHandles);
-
-                    //remove this material ID from the parentNode. But do NOT add it to the 'deleted IDs' list
-                    parentNode.RemoveMaterialID(deleteID, false);
+                    else
+                    {
+                        parentNode.UpdatePlaceHolderID(deleteID, true);
+                        m_TreeviewManager.UpdateNode(parentNode, deleteID);
+                    }
                 }
 
                 //These are all the IDs that possibly need updating in our treeView 
                 //afterIDChange is used here because totalIDs includes the EXTRA placeholder IDs that could never not be a placeholder
-                var updateIDs = afterIDChange.Intersect(beforeIDChange);
                 foreach (ushort updateID in afterIDChange)
                 {
                     //These are all the nodes that are possibly no longer Placeholder nodes
@@ -689,16 +693,11 @@ namespace Test_ExplodeScript
 
                         if (childHandles.Any())
                         {
-                            //Change this methods name!!! TODO
-                            m_RealParentNodeDictionary[handle].SetPlacerHolderID(updateID, false);
+                            m_RealParentNodeDictionary[handle].UpdatePlaceHolderID(updateID, false);
                             m_TreeviewManager.UpdateNode(parentNode, updateID);
                         }
                     }
-
-                    
-                    //m_RealParentNodeDictionary[handle].UpdatePlaceHolderNodes(parentNode);
                 }
-                
                 
                 //Get all the deleted nodes
                 var alreadyDeletedIDs = parentNode.GetDeletedMaterialIDsArray();
@@ -710,7 +709,13 @@ namespace Test_ExplodeScript
                     m_RealParentNodeDictionary.Remove(handle);
                 }
 
-                UpdateTreeView(handleList, deleteIDs, addIDs);
+                foreach (ushort addID in addIDs)
+                {
+                    m_TreeviewManager.AddNode(parentNode, addID);
+                }
+
+                m_TreeviewManager.ResumeDrawing();
+                m_TreeviewManager.UpdateDeletePanels();
             }
             else //HP - the difficult part
             {
@@ -719,6 +724,9 @@ namespace Test_ExplodeScript
                 //What if the user changed it to a Material ID that is not present in the current LPs?
                 //we need a way of showing non-matching HP nodes. 
                 //Add them under a 'node' that says Missing - MatID: id in RED
+
+                //Suspend treeview from drawing to reduce flicker
+                m_TreeviewManager.SuspendDrawing();
 
                 var lpHandles = m_RealParentNodeDictionary.Keys.ToArray();
                 foreach (uint lpHandle in lpHandles)
@@ -745,10 +753,7 @@ namespace Test_ExplodeScript
                             //Get the parentNode
                             var parentNode = m_RealParentNodeDictionary[lpHandle];
                             var usedLpIDs = parentNode.GetUsedMaterialIDsArray();
-
-                            //there is a chance none of them get parented - then we have rogue HP objects, we should have a 
-                            //placeholder parent: Missing - MatID: id
-
+                            
                             //We need 3 lists, a delete ID list and a newID list, but it could be that the new ID has a LP ID
                             //Delete List
                             //New new list (with placeHolderNodes)
@@ -760,22 +765,27 @@ namespace Test_ExplodeScript
                                 if (parentNode.IsPlaceHolder(deleteID) && parentNode.GetChildHandles(deleteID).Count() == 0)
                                 {
                                     m_RealParentNodeDictionary[parentNode.Handle].RemovePlaceholderNode(deleteID);
+                                    m_TreeviewManager.DeleteNode(parentNode, deleteID);
                                 }
 
-                                m_TreeviewManager.DeleteNode(parentNode.Handle, deleteID);
-
-                                updateTreeView = true;
+                                //m_TreeviewManager.DeleteNode(parentNode.Handle, deleteID);
+                                m_TreeviewManager.DeleteNode(uniqueChildNode.Handle, deleteID);
                             }
 
                             //now either add a new placeholder or set it as a child to an already existing node
                             var matchIDs = newIDs.Intersect(usedLpIDs);
-         
+
+                            //We will go into this foreach because if we have an ID and we change it to an already existing ID
+                            //there is no new match, because there are no new IDs, but this means it doesn't select our correct ID 
+               
+
                             if (matchIDs.Any())
                             {
                                 foreach (ushort matchID in matchIDs)
                                 {
                                     parentNode.SetChild(matchID, uniqueChildNode); 
-                                    updateTreeView = true;
+                                    //updateTreeView = true;
+                                    m_TreeviewManager.UpdateNode(parentNode, matchID, true);
                                 }
                             }
                             else
@@ -783,17 +793,17 @@ namespace Test_ExplodeScript
                                 foreach (ushort newID in newIDs)
                                 {
                                     parentNode.SetPlaceHolderID(newID);
-                                    parentNode.SetChild(newID, uniqueChildNode); 
-                                    updateTreeView = true;
+                                    parentNode.SetChild(newID, uniqueChildNode);
+
+                                    m_TreeviewManager.AddNode(parentNode, newID, true);
                                 }
                             }
                         }
                     }
                 }
 
-                //Need better one, but for now this will do
-                if (updateTreeView)
-                    PopulateTreeview();
+                m_TreeviewManager.ResumeDrawing();
+                m_TreeviewManager.UpdateDeletePanels();
             }
         }
 
@@ -878,43 +888,25 @@ namespace Test_ExplodeScript
                 uint lpHandle = panelClickedNode.ParentHandle;  //we need the parent handle to get it out of our dictionary
                 ushort id = panelClickedNode.matID;
                 uint hpHandle = panelClickedNode.uHandle; //clicked node handle
+                var parentNode = m_RealParentNodeDictionary[lpHandle];
 
                 //Delete HP node from our TreeViewManager
                 m_TreeviewManager.DeleteChildNode(panelClickedNode);
 
                 //Delete the node in our dictionary
-                m_RealParentNodeDictionary[lpHandle].DeleteChild(hpHandle, id);
+                parentNode.DeleteChild(hpHandle, id);
+
+                //If the parentNode is a plcerholder and it has no children we should remove it too. 
+                if (parentNode.IsPlaceHolder(id) && parentNode.GetChildHandles(id).Count() == 0)
+                {
+                    m_RealParentNodeDictionary[parentNode.Handle].RemovePlaceholderNode(id);
+                    m_TreeviewManager.DeleteNode(parentNode, id);
+                }
             }
 
             m_TreeviewManager.UpdateDeletePanels();
         }
 
-
-        private void UpdateTreeView(List<uint> handles, IEnumerable<ushort> deleteIDs, IEnumerable<ushort> addIDs)
-        {
-            var treeview = m_TreeviewManager.TreeView;
-            treeview.BeginUpdate();
-
-            foreach (ushort deleteID in deleteIDs)
-            {
-                m_TreeviewManager.DeleteNodes(handles, deleteID);
-                DebugMethods.Log(String.Format("Deleting matID: {0}", deleteID + 1));
-            }
-
-            foreach (ushort addID in addIDs)
-            {
-                var lpNode = new TreeNodeEx(handles[0], addID, String.Format("{0} - MatID: {1}",
-                                            m_RealParentNodeDictionary[handles[0]].Name, addID + 1), false);
-
-                m_TreeviewManager.AddNode(lpNode);
-
-                DebugMethods.Log(String.Format("Adding matID: {0}", addID + 1));
-            }
-
-            treeview.EndUpdate();
-            m_TreeviewManager.UpdateDeletePanels();
-        }
-        
 
         /// <summary>
         /// Completely redraws the treeview - use when we changed all our nodes
@@ -963,7 +955,7 @@ namespace Test_ExplodeScript
                         }
                     }
 
-                    m_TreeviewManager.AddNode(lpNode);
+                    m_TreeviewManager.AddNode(lpNode, false);
                 }
             }
 
