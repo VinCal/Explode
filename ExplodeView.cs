@@ -193,10 +193,10 @@ namespace Test_ExplodeScript
         void getVertInfoFromID_Click(object sender, EventArgs e)
         {
             //m_Controller.PrintVertexPos((ushort)(((sender as Button).Tag) as NumericUpDown).Value);
+            m_Controller.Cleanup();
+
             m_MaxForm.Close();
             ((sender as Button).Parent as Form).Close();
-
-            m_Controller.Cleanup();
         }
 
         void button_Click(object sender, EventArgs e)

@@ -118,9 +118,6 @@ namespace Test_ExplodeScript
 
         public override void TopologyChanged(ITab<UIntPtr> nodes)
         {
-            //Material ID
-            //DebugMethods.Log("topology changed");
-
             var global = GlobalInterface.Instance;
 
             for (int i = 0; i < nodes.Count; i++)
@@ -128,25 +125,6 @@ namespace Test_ExplodeScript
                 using (var node = global.NodeEventNamespace.GetNodeByKey(nodes[(IntPtr)i]))
                 {
                     m_Controller.UpdateMaterialIDChange(node.Handle);
-
-                    //foreach (var watchHandles in m_WatchLPNodeList)
-                    //{
-                    //    if (node.Handle == watchHandles)
-                    //    {
-                    //        IObject baseObjectRef = node.ObjectRef.FindBaseObject();
-                    //        bool isPolyObject = baseObjectRef.ClassID.OperatorEquals(global.Class_ID.Create(0x1bf8338d, 0x192f6098)) == 1;
-                    //        m_Controller.UpdateMaterialIDChange(node.Handle);
-                    //    }
-                    //}
-                    //foreach (var watchHandles in m_WatchHPNodeList)
-                    //{
-                    //    if (node.Handle == watchHandles)
-                    //    {
-                    //        IObject baseObjectRef = node.ObjectRef.FindBaseObject();
-                    //        bool isPolyObject = baseObjectRef.ClassID.OperatorEquals(global.Class_ID.Create(0x1bf8338d, 0x192f6098)) == 1;
-                    //        m_Controller.UpdateAfterCollapse(node.Handle, isPolyObject, false);
-                    //    }
-                    //}
                 }
             }
 
@@ -185,6 +163,21 @@ namespace Test_ExplodeScript
             }
 
             base.ModelStructured(nodes);
+        }
+
+        public override void Deleted(ITab<UIntPtr> nodes)
+        {
+            var global = GlobalInterface.Instance;
+
+            for (int i = 0; i < nodes.Count; i++)
+            {
+                using (var node = global.NodeEventNamespace.GetNodeByKey(nodes[(IntPtr) i]))
+                {
+                    m_Controller.DeleteNode(node.Handle);
+                }
+            }
+
+            base.Deleted(nodes);
         }
     }
 
@@ -282,35 +275,18 @@ namespace Test_ExplodeScript
             else
                 baseNode = m_RealParentNodeDictionary[parentHandle].GetChild(matID, selectedHandle);
 
-            var parentNode = baseNode as ParentNode;
             if (baseNode.Mesh.PolyMesh != null) //editable poly
             {
                 var mesh = baseNode.Mesh.PolyMesh;
-                if (parentNode != null && parentNode.IsPlaceHolder(matID))
-                {
-                    IBitArray empty = m_Global.BitArray.Create();
-                    mesh.FaceSelect(empty);
-                }
-                else
-                {
-                    ConvertBitArrayToIBitArray(baseNode, matID);
-                    mesh.FaceSelect(baseNode.GetSelectionBitArray(matID));
-                }
+                ConvertBitArrayToIBitArray(baseNode, matID);
+                mesh.FaceSelect(baseNode.GetSelectionBitArray(matID));
             }
 
             else //mesh
             {
                 var mesh = baseNode.Mesh.TriMesh;
-                if (parentNode != null && parentNode.IsPlaceHolder(matID))
-                {
-                    IBitArray empty = m_Global.BitArray.Create();
-                    mesh.FaceSel = empty;
-                }
-                else
-                {
-                    ConvertBitArrayToIBitArray(baseNode, matID);
-                    mesh.FaceSel = baseNode.GetSelectionBitArray(matID);
-                }
+                ConvertBitArrayToIBitArray(baseNode, matID);
+                mesh.FaceSel = baseNode.GetSelectionBitArray(matID);
             }
 
             //This line makes it so the commandPanel updates again showing the correct Material ID for the selection
@@ -335,7 +311,7 @@ namespace Test_ExplodeScript
         }
 
 
-        private GlobalDelegates.Delegate4 m_SceneResetHandler;
+        private GlobalDelegates.Delegate5 m_SceneResetHandler;
         private uint m_NodeEventID;
 
         void Global_SceneReset(IntPtr obj, IntPtr info)
@@ -354,7 +330,7 @@ namespace Test_ExplodeScript
             {
                 m_Global.ISceneEventManager.UnRegisterCallback(m_NodeEventID);
                 m_NodeEventCallback = null;
-                m_NodeEventID = 0;
+                m_NodeEventID = 0; 
             }
             
             //Update our treeview to reflect this
@@ -367,8 +343,9 @@ namespace Test_ExplodeScript
 
         public void Cleanup()
         {
-            m_TreeviewManager.Dispose();
-            m_TreeviewManager = null;
+            //Update our treeview to reflect this
+            if (m_TreeviewManager != null)
+                m_TreeviewManager.Clear();
 
             if (m_RealParentNodeDictionary != null) //this could never really be null but, maybe if every node was removed 
                 m_RealParentNodeDictionary.Clear();
@@ -391,6 +368,8 @@ namespace Test_ExplodeScript
 
         public bool AddLPObjects()
         {
+            DebugMethods.Log("BROLLLL");
+
             IInterface iface = m_Global.COREInterface;
 
             if (m_NodeEventID == 0)
@@ -405,6 +384,10 @@ namespace Test_ExplodeScript
                 m_SceneResetHandler = (Global_SceneReset);
                 m_Global.RegisterNotification(m_SceneResetHandler, null, SystemNotificationCode.PostSceneReset);
             }
+
+            //m_NodePostDeleteHandler = Global_ObjDeleted;
+            //m_Global.RegisterNotification(m_NodePostDeleteHandler, null, SystemNotificationCode.SelNodesPostDelete);
+            
 
             //TODO implement Exploded stuff
             //we should read the properties here and determine wheter the object has been exploded before or not
@@ -504,24 +487,25 @@ namespace Test_ExplodeScript
                 {
                     //We don't replace the entire node with parentNode because in that case he would lose his children
                     //We do need to clear the deleted material ID set
-                    var addedIds = m_RealParentNodeDictionary[nodeHandle].UpdateMaterialBitArray(parentNode);
+                    var addedIds = UpdateMaterialBitArray(m_RealParentNodeDictionary[nodeHandle], parentNode);
                     string ids = string.Empty;
 
                     if (addedIds.Any())
                     {
                         m_RealParentNodeDictionary[nodeHandle].ClearDeletedMaterialIDs();
 
-                        foreach (ushort id in addedIds)
+                        foreach (UpdatedNodeStruct updatedNode in addedIds)
                         {
                             //Add will add new Nodes
-                            m_TreeviewManager.AddNode(m_RealParentNodeDictionary[nodeHandle], id);
+                            if (!updatedNode.WasPlaceholder)
+                                m_TreeviewManager.AddNode(m_RealParentNodeDictionary[nodeHandle], updatedNode.MatID);
                             //Update will update existing nodes, such as Placeholder nodes
-                            m_TreeviewManager.UpdateNode(m_RealParentNodeDictionary[nodeHandle], id);
+                            m_TreeviewManager.UpdateNode(m_RealParentNodeDictionary[nodeHandle], updatedNode.MatID);
 
                             //Update the delete panels
                             m_TreeviewManager.UpdateDeletePanels();
 
-                            ids += id + 1 + ", ";
+                            ids += updatedNode.MatID + 1 + ", ";
                         }
 
                         nodeAddedInformation = "Materials IDs added: " + ids.Remove(ids.Length - 2);
@@ -583,7 +567,7 @@ namespace Test_ExplodeScript
                 var lpHandles = m_RealParentNodeDictionary.Keys.ToArray();
 
                 //Loop through all lp objects
-                foreach (uint lpHandle in lpHandles)
+                foreach (uint lpHandle in lpHandles) 
                 {
                     //Get all lp IDs
                     var usedLpIDs = m_RealParentNodeDictionary[lpHandle].GetUsedMaterialIDsArray();
@@ -632,23 +616,93 @@ namespace Test_ExplodeScript
             }
         }
 
+        private struct UpdatedNodeStruct
+        {
+            public ushort MatID;
+            public bool WasPlaceholder;
+        }
+
+        private List<UpdatedNodeStruct> UpdateMaterialBitArray(ParentNode oldParentNode, ParentNode newParentNode)
+        {
+            var addedIDslist = new List<UpdatedNodeStruct>();
+
+            //We only want to update our m_ElementNodeDictionary if the parentNode is actually already in our list
+            if (oldParentNode.Handle == newParentNode.Handle)
+            {
+                //Currently active IDs in the m_RealParentNodeDictionary
+                var usedIDs = oldParentNode.GetUsedMaterialIDsArray();
+                //All of the Material IDs in parentNode
+                var newIDs = newParentNode.GetUsedMaterialIDsArray();
+
+                //All of the material IDs in parentNode - currently active IDs
+                var toBeAddedIDs = newIDs.Except(usedIDs).ToArray();
+
+                Array.Sort(toBeAddedIDs);
+                string ids = string.Empty;
+
+                //Nodes that were deleted with no kids - so no placeholder nodes
+                foreach (ushort beAddedID in toBeAddedIDs)
+                {
+                    //Add the materialIDBitArray at the beAddedID key
+                    oldParentNode.SetMaterialBitArray(beAddedID, newParentNode.GetMaterialBitArray(beAddedID));
+
+                    //ids += beAddedID + 1 + ", ";
+                    addedIDslist.Add(new UpdatedNodeStruct(){MatID = beAddedID, WasPlaceholder = false});
+                }
+
+                //I don't know why we ever had this? Maybe we can come back to it but if we do need it test this:
+                //Add LP, Add HP -> Result: Missing LP Mat ID: 2. Add LP again: Mat ID 2 added, crash when clicking on it.
+
+                //If the node has placeholder IDs we need to check if they exist in our newIDs list, if so we need to replace them with
+                //real nodes. and copy everything over and stuff
+                var placeHolderIDs = oldParentNode.GetPlaceholderIDs();
+
+                //Get the placeHolder nodes that we now have info about again (newIDs)
+                var placeHolderToRealNodeList = placeHolderIDs.Intersect(newIDs);
+
+                var tempChildNodeList = new List<ChildNode>();
+                foreach (ushort placeHolderID in placeHolderToRealNodeList)
+                {
+                    //Get the all the children of the placeholder
+                    var childHandles = oldParentNode.GetChildHandles(placeHolderID);
+                    foreach (uint childHandle in childHandles)
+                    {
+                        tempChildNodeList.Add(oldParentNode.GetChild(placeHolderID, childHandle));
+                    }
+
+                    //Remove the placeHolder
+                    oldParentNode.RemovePlaceholderNode(placeHolderID);
+
+                    oldParentNode.SetMaterialBitArray(placeHolderID, newParentNode.GetMaterialBitArray(placeHolderID));
+                    foreach (ChildNode childNode in tempChildNodeList)
+                    {
+                        oldParentNode.SetChild(placeHolderID, childNode);
+                    }
+
+                    //ids += placeHolderID + 1 + ", ";
+                    addedIDslist.Add(new UpdatedNodeStruct() { MatID = placeHolderID, WasPlaceholder = true });
+                }
+
+                return addedIDslist;
+            }
+
+            throw new UpdateMaterialBitArrayException(newParentNode);
+        }
 
         public void UpdateMaterialIDChange(uint handle)
         {
-            var updateTreeView = false;
             //LP
-            if (m_RealParentNodeDictionary.ContainsKey(handle))
+            if (m_RealParentNodeDictionary.ContainsKey(handle)) 
             {
                 m_TreeviewManager.SuspendDrawing();
 
                 //Get the parentNode at handle
-                var parentNode = m_RealParentNodeDictionary[handle];
-
+                var parentNode = m_RealParentNodeDictionary[handle];  
                 //Get all the material IDs before we update our node (this will NOT include deleted IDs)
                 var beforeIDChange = parentNode.GetUsedMaterialIDsArray();
 
                 //Update our node
-                ObjectMethods.UpdateFaceDictionary(parentNode);
+                var faceCountChangedID = ObjectMethods.UpdateFaceDictionary(parentNode);
 
                 //Get all the material IDs again, but after we've updated the node
                 var afterIDChange = parentNode.GetUsedMaterialIDsArray();
@@ -662,7 +716,6 @@ namespace Test_ExplodeScript
                 var deleteIDs = beforeIDChange.Except(totalIDs);
                 //IDs that should be added
                 var addIDs = totalIDs.Except(beforeIDChange);
-
 
                 foreach (ushort deleteID in deleteIDs)
                 {
@@ -678,6 +731,12 @@ namespace Test_ExplodeScript
                         parentNode.UpdatePlaceHolderID(deleteID, true);
                         m_TreeviewManager.UpdateNode(parentNode, deleteID);
                     }
+                }
+
+                foreach (ushort addID in addIDs) 
+                {
+                    if (!parentNode.IsPlaceHolder(addID))
+                        m_TreeviewManager.AddNode(parentNode, addID);
                 }
 
                 //These are all the IDs that possibly need updating in our treeView 
@@ -709,11 +768,11 @@ namespace Test_ExplodeScript
                     m_RealParentNodeDictionary.Remove(handle);
                 }
 
-                foreach (ushort addID in addIDs)
+                if (!addIDs.Any() && faceCountChangedID != null)
                 {
-                    m_TreeviewManager.AddNode(parentNode, addID);
+                    m_TreeviewManager.SelectNode(parentNode, faceCountChangedID.Value);
                 }
-
+                
                 m_TreeviewManager.ResumeDrawing();
                 m_TreeviewManager.UpdateDeletePanels();
             }
@@ -742,7 +801,7 @@ namespace Test_ExplodeScript
                             //Get all the material IDs before we update our node (this will NOT include deleted IDs)
                             var beforeIDChange = uniqueChildNode.GetUsedMaterialIDsArray();
 
-                            ObjectMethods.UpdateFaceDictionary(uniqueChildNode);
+                            var faceCountChangedID = ObjectMethods.UpdateFaceDictionary(uniqueChildNode);
 
                             //Get all the material IDs again, but after we've updated the node
                             var afterIDChange = uniqueChildNode.GetUsedMaterialIDsArray();
@@ -784,7 +843,6 @@ namespace Test_ExplodeScript
                                 foreach (ushort matchID in matchIDs)
                                 {
                                     parentNode.SetChild(matchID, uniqueChildNode); 
-                                    //updateTreeView = true;
                                     m_TreeviewManager.UpdateNode(parentNode, matchID, true);
                                 }
                             }
@@ -796,6 +854,10 @@ namespace Test_ExplodeScript
                                     parentNode.SetChild(newID, uniqueChildNode);
 
                                     m_TreeviewManager.AddNode(parentNode, newID, true);
+                                }
+                                if (!newIDs.Any() && faceCountChangedID != null)
+                                {
+                                    m_TreeviewManager.SelectChildNode(uniqueChildNode, faceCountChangedID.Value);
                                 }
                             }
                         }
@@ -858,6 +920,71 @@ namespace Test_ExplodeScript
                 }
             }
         }
+
+        public void DeleteNode(uint handle)
+        {
+            if (m_RealParentNodeDictionary.ContainsKey(handle))
+            {
+                var node = m_RealParentNodeDictionary[handle];
+
+                foreach (ushort deleteID in node.GetUsedMaterialIDsArray())
+                {
+                    //We only want to delete this node if it has no children, if it does have children we need to make it a placeHolder
+                    var childNodeHandles = node.GetChildHandles(deleteID);
+                    if (!childNodeHandles.Any())
+                    {
+                        node.RemoveMaterialID(deleteID, false);
+                        m_TreeviewManager.DeleteNode(node, deleteID);
+                    }
+                    else
+                    {
+                        node.UpdatePlaceHolderID(deleteID, true);
+                        m_TreeviewManager.UpdateNode(node, deleteID);
+                    }
+                }
+
+                //This will happen when the node had no children, so we've just deleted all the material IDs, otherwise if it did have
+                //children we would've made all the nodes placeholders, and that means we want to keep the node in the Dictionary
+                if (node.GetUsedMaterialIDsArray().Count() == 0)
+                    m_RealParentNodeDictionary.Remove(handle);
+
+                m_TreeviewManager.UpdateDeletePanels();
+            }
+            else
+            {
+                var lpHandles = m_RealParentNodeDictionary.Keys.ToArray();
+                foreach (uint lpHandle in lpHandles)
+                {
+                    //This will return all the childNodes (unique ones)
+                    var childNodes = m_RealParentNodeDictionary[lpHandle].GetUniqueChildNodes();
+
+                    foreach (var uniqueChildNode in childNodes)
+                    {
+                        if (uniqueChildNode.Handle == handle)
+                        {
+                            var parentNode = m_RealParentNodeDictionary[uniqueChildNode.ParentHandle];
+
+                            foreach (ushort deleteID in uniqueChildNode.GetUsedMaterialIDsArray())
+                            {
+                                parentNode.DeleteChild(uniqueChildNode.Handle, deleteID);
+                                //If there are no more children in this parentNode and it's a placeHolder node then we should delete it
+                                if (parentNode.IsPlaceHolder(deleteID) && parentNode.GetChildHandles(deleteID).Count() == 0)
+                                {
+                                    m_RealParentNodeDictionary[parentNode.Handle].RemovePlaceholderNode(deleteID);
+                                    m_TreeviewManager.DeleteNode(parentNode, deleteID);
+                                }
+
+                                //m_TreeviewManager.DeleteNode(parentNode.Handle, deleteID);
+                                m_TreeviewManager.DeleteNode(uniqueChildNode.Handle, deleteID);
+                            }
+                        }
+                    }
+                }
+
+                m_TreeviewManager.UpdateDeletePanels();
+            }
+        }
+
 
         public void DeleteTreeNode(TreeNodeEx panelClickedNode)
         {

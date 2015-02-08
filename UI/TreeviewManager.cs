@@ -523,5 +523,21 @@ namespace ExplodeScript.UI
             TreeView.Nodes.Insert(insertIndex, node);
         }
 
+
+        public void SelectNode(ParentNode parentNode, ushort updateID)
+        {
+            if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(parentNode.Handle, updateID)))
+            {
+                TreeView.SelectedNode = m_NodeDictionary[new Tuple<uint, ushort>(parentNode.Handle, updateID)];
+            }
+        }
+
+        public void SelectChildNode(ChildNode childNode, ushort updateID)
+        {
+            if (m_NodeDictionary.ContainsKey(new Tuple<uint, ushort>(childNode.Handle, updateID)))
+            {
+                TreeView.SelectedNode = m_NodeDictionary[new Tuple<uint, ushort>(childNode.Handle, updateID)];
+            }
+        }
     }
 }

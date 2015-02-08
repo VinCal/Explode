@@ -102,14 +102,20 @@ namespace ExplodeScript
         
 
 
-        public static void UpdateFaceDictionary(BaseNode node)
+        public static ushort? UpdateFaceDictionary(BaseNode node)
         {
             var triMesh = node.Mesh.TriMesh;
             var polyMesh = node.Mesh.PolyMesh;
 
+            var faceCountPerID = new Dictionary<ushort, int>();
+            //Get numFaces of each ID
+            foreach (var ids in node.GetUsedMaterialIDsArray())
+            {
+                faceCountPerID.Add(ids, GetCardinality(node.GetMaterialBitArray(ids)));
+            }
+
             //clear the materialFaceDictionary
             node.ClearMaterialBitArray();
-
 
             if (node.Mesh.TriMesh != null)
             {
@@ -155,6 +161,15 @@ namespace ExplodeScript
                     }
                 }
             }
+
+            foreach (var ids in node.GetUsedMaterialIDsArray())
+            {
+                int numFaces;
+                if (!faceCountPerID.TryGetValue(ids, out numFaces)) continue;
+                if (numFaces != GetCardinality(node.GetMaterialBitArray(ids))) return ids;
+            }
+
+            return null;
         }
 
         private static void UpdateNode(BaseNode node, ushort matID, int index, int numFaces)
@@ -434,6 +449,37 @@ namespace ExplodeScript
             var m3LocalInverse = m_Global.Inverse(local);
             //Convert back to local space
             return (m3LocalInverse.PointTransform(worldPos));
+        }
+
+        private static int GetCardinality(BitArray bitArray)
+        {
+            Int32[] ints = new Int32[(bitArray.Count >> 5) + 1];
+
+            bitArray.CopyTo(ints, 0);
+
+            Int32 count = 0;
+
+            // fix for not truncated bits in last integer that may have been set to true with SetAll()
+            ints[ints.Length - 1] &= ~(-1 << (bitArray.Count % 32));
+
+            for (Int32 i = 0; i < ints.Length; i++)
+            {
+                Int32 c = ints[i];
+
+                // magic (http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel)
+                unchecked
+                {
+                    c = c - ((c >> 1) & 0x55555555);
+                    c = (c & 0x33333333) + ((c >> 2) & 0x33333333);
+                    c = ((c + (c >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
+                }
+
+                count += c;
+
+            }
+
+            return count;
+
         }
     }
 }
